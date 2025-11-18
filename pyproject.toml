@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "monet-meteo"
+dynamic = ["version"]
+authors = [
+  { name="NOAA Air Resources Laboratory", email="arl.webmaster@noaa.gov" },
+]
+maintainers = [
+  { name="Monet Development Team", email="arl.webmaster@noaa.gov" },
+]
+description = "A comprehensive meteorological library for atmospheric sciences that provides tools for atmospheric calculations including thermodynamic variables, derived parameters, and dynamic calculations."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+dependencies = [
+    "numpy>=1.21.0",
+    "pint>=0.20.0",
+    "xarray>=0.20.0",
+    "scipy>=1.7.0",
+    "dask[array]>=2021.10.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-benchmark>=4.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+    "pre-commit>=2.17.0",
+    "setuptools_scm>=6.2",
+]
+docs = [
+    "sphinx>=4.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "sphinx-autoapi>=1.8.0",
+    "myst-parser>=0.18.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/noaa-oar-arl/monet-meteo"
+"Bug Tracker" = "https://github.com/noaa-oar-arl/monet-meteo/issues"
+"Documentation" = "https://monet-meteo.readthedocs.io/"
+"Source" = "https://github.com/noaa-oar-arl/monet-meteo"
+"Changelog" = "https://github.com/noaa-oar-arl/monet-meteo/blob/main/CHANGELOG.md"
+
+[project.scripts]
+"monet-meteo" = "monet_meteo.cli:main"
+
+[tool.setuptools_scm]
+write_to = "monet_meteo/_version.py"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["monet_meteo*"]
+
+[tool.setuptools.package-data]
+monet_meteo = ["py.typed"]

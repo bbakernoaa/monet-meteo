@@ -1,0 +1,6 @@
+# Production requirements for monet-meteo
+numpy>=1.21.0
+pint>=0.20.0
+xarray>=0.20.0
+scipy>=1.7.0
+dask[array]>=2021.10.0
