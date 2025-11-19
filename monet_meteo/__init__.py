@@ -6,7 +6,13 @@ derived parameters, dynamic calculations, unit conversions, interpolations, and 
 transformations.
 """
 
-__version__ = "0.0.1"
+try:
+    # Try to get version from setuptools_scm
+    from ._version import version as __version__
+except ImportError:
+    # Fallback to hardcoded version
+    __version__ = "0.0.1"
+
 __author__ = "NOAA Air Resources Laboratory"
 
 from . import thermodynamics
