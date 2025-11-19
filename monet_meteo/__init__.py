@@ -2,8 +2,7 @@
 Monet Meteo - A comprehensive meteorological library for atmospheric sciences.
 
 This package provides tools for atmospheric calculations including thermodynamic variables,
-derived parameters, dynamic calculations, unit conversions, interpolations, and coordinate
-transformations.
+derived parameters, dynamic calculations, unit conversions, and statistical operations.
 """
 
 try:
@@ -22,8 +21,6 @@ from . import statistical
 from . import constants
 from . import models
 from . import units
-from . import interpolation
-from . import coordinates
 from . import io
 
 # Import main functions for easy access
@@ -32,5 +29,4 @@ from .derived import *
 from .dynamics import *
 from .models import *
 from .units import *
-from .interpolation import *
-from .coordinates import *
+from .statistical import *
