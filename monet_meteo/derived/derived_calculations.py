@@ -5,7 +5,7 @@ Includes heat index, wind chill, etc.
 
 import numpy as np
 import xarray as xr
-from typing import Union, Optional, Any
+from typing import Union, Any
 from ..thermodynamics import thermodynamic_calculations as thermo
 
 
@@ -36,7 +36,7 @@ def heat_index(
         RH = np.where(RH_val <= 1.0, RH_val * 100.0, RH_val)
 
     # Simple formula
-    HI_simple = 0.5 * (T_f + 61.0 + ((T_f - 68.0) * 1.2) + (RH * 0.094))
+    0.5 * (T_f + 61.0 + ((T_f - 68.0) * 1.2) + (RH * 0.094))
 
     # Full regression
     HI_f = (

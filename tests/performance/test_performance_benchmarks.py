@@ -303,7 +303,7 @@ class TestScalability:
             temperature = np.random.uniform(250, 320, (size, size))
 
             start_time = time.time()
-            theta = potential_temperature(pressure=pressure, temperature=temperature)
+            potential_temperature(pressure=pressure, temperature=temperature)
             end_time = time.time()
 
             times.append(end_time - start_time)
@@ -337,7 +337,7 @@ class TestScalability:
             temperature = np.random.uniform(250, 320, shape)
 
             start_time = time.time()
-            theta = potential_temperature(pressure=pressure, temperature=temperature)
+            potential_temperature(pressure=pressure, temperature=temperature)
             end_time = time.time()
 
             computation_time = end_time - start_time
@@ -436,10 +436,10 @@ class TestRealWorldScenarios:
             start_time = time.time()
 
             # Typical workflow: calculate multiple diagnostics
-            theta = potential_temperature(pressure=pressure, temperature=temperature)
+            potential_temperature(pressure=pressure, temperature=temperature)
             svp = saturation_vapor_pressure(temperature)
             mix_ratio = mixing_ratio(vapor_pressure=humidity * svp, pressure=pressure)
-            t_virtual = virtual_temperature(
+            virtual_temperature(
                 temperature=temperature, mixing_ratio=mix_ratio
             )
 

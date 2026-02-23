@@ -28,8 +28,8 @@ class TestXarrayIntegration:
             1 + 0.1 * np.random.randn(5, 10, 20)
         )
         humidity_data = np.random.uniform(0.1, 0.9, (5, 10, 20))
-        u_wind_data = 10.0 * np.random.randn(5, 10, 20)
-        v_wind_data = 5.0 * np.random.randn(5, 10, 20)
+        10.0 * np.random.randn(5, 10, 20)
+        5.0 * np.random.randn(5, 10, 20)
         coords = {
             "pressure": pressure_levels,
             "latitude": latitudes,
