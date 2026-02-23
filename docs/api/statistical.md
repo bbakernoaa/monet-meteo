@@ -440,17 +440,17 @@ def analyze_micrometeorological_data(u, v, w, temperature, height, z0):
     """
     # Calculate basic statistics
     wind_speed = np.sqrt(u**2 + v**2)
-    
+
     # Calculate stability parameters
     ri = mm.bulk_richardson_number(u, v, temperature, height)
     ustar = mm.friction_velocity_from_wind(wind_speed, height, z0)
-    
+
     # Calculate turbulence statistics
     TI = mm.turbulence_intensity(u, v, w)
-    
+
     # Classify atmospheric conditions
     stability_class = classify_atmospheric_stability(ri)
-    
+
     return {
         'wind_speed': wind_speed,
         'friction_velocity': ustar,
@@ -486,21 +486,21 @@ def process_eddy_covariance_data(u, v, w, T, CO2, metadata):
     momentum_flux = np.mean(u * w)
     sensible_heat_flux = np.mean(w * T)
     CO2_flux = np.mean(w * CO2)
-    
+
     # Calculate friction velocity
     ustar = np.sqrt(abs(momentum_flux))
-    
+
     # Calculate Monin-Obukhov length
     L = mm.monin_obukhov_length(
-        ustar, np.mean(T), metadata['air_density'], 
+        ustar, np.mean(T), metadata['air_density'],
         metadata['specific_heat'], sensible_heat_flux
     )
-    
+
     # Calculate stability corrections
     z_over_L = metadata['height'] / L
     psi_m = mm.psi_momentum(z_over_L)
     psi_h = mm.psi_heat(z_over_L)
-    
+
     return {
         'momentum_flux': momentum_flux,
         'sensible_heat_flux': sensible_heat_flux,
@@ -527,10 +527,10 @@ def detect_boundary_layer_height(wind_speed, potential_temperature, time_height_
         v_profile = time_height_matrix['v_wind'][:, i]
         theta_profile = time_height_matrix['potential_temperature'][:, i]
         height_profile = time_height_matrix['height'][i]
-        
+
         ri = mm.bulk_richardson_number(u_profile, v_profile, theta_profile, height_profile)
         ri_profiles.append(ri)
-    
+
     # Find height where Ri > critical value (typically 0.25)
     critical_ri = 0.25
     bl_heights = []
@@ -541,7 +541,7 @@ def detect_boundary_layer_height(wind_speed, potential_temperature, time_height_
         else:
             bl_height = np.nan
         bl_heights.append(bl_height)
-    
+
     return np.array(bl_heights)
 
 # Example usage

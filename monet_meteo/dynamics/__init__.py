@@ -20,17 +20,17 @@ from .dynamic_calculations import (
     potential_vorticity,
     vertical_velocity_pressure,
     omega_to_w,
-    coriolis_parameter
+    coriolis_parameter,
 )
 
 __all__ = [
-    'absolute_vorticity',
-    'relative_vorticity',
-    'divergence',
-    'geostrophic_wind',
-    'gradient_wind',
-    'potential_vorticity',
-    'vertical_velocity_pressure',
-    'omega_to_w',
-    'coriolis_parameter'
+    "absolute_vorticity",
+    "relative_vorticity",
+    "divergence",
+    "geostrophic_wind",
+    "gradient_wind",
+    "potential_vorticity",
+    "vertical_velocity_pressure",
+    "omega_to_w",
+    "coriolis_parameter",
 ]

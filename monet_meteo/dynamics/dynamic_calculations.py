@@ -1,377 +1,232 @@
 """
 Dynamic calculations for atmospheric science.
-
-This module provides functions for calculating dynamic meteorological parameters including:
-- Vorticity
-- Divergence
-- Geostrophic wind
-- Gradient wind
-- Absolute vorticity
-- Potential vorticity
+Implementations of geostrophic wind, gradient wind, etc.
 """
 
 import numpy as np
-from typing import Union, Tuple
 import xarray as xr
+from typing import Union, Tuple, Optional, Any
 
 # Import constants
-from ..constants import g, Omega, R_earth
+from ..constants import f0_default, omega
+
+
+def _update_history(obj: Any, msg: str) -> Any:
+    """Update history attribute."""
+    if isinstance(obj, xr.DataArray):
+        history = obj.attrs.get("history", "")
+        obj.attrs["history"] = (history + "\n" if history else "") + msg
+    return obj
 
 
 def coriolis_parameter(
     latitude: Union[float, np.ndarray, xr.DataArray]
 ) -> Union[float, np.ndarray, xr.DataArray]:
-    """
-    Calculate the Coriolis parameter (f = 2Ωsinφ).
-    
-    Parameters
-    ----------
-    latitude : float, numpy.ndarray, or xarray.DataArray
-        Latitude in radians
-    
-    Returns
-    -------
-    float, numpy.ndarray, or xarray.DataArray
-        Coriolis parameter (s^-1)
-    """
-    # If latitude is in degrees, convert to radians
-    if np.max(np.abs(latitude)) > np.pi/4:  # Likely in degrees
-        lat_rad = np.radians(latitude)
-    else:
-        lat_rad = latitude  # Assume already in radians
-    
-    f = 2 * Omega * np.sin(lat_rad)
-    
+    """Calculate Coriolis parameter."""
+    phi = np.deg2rad(latitude)
+    f = 2 * omega * np.sin(phi)
+    if isinstance(f, xr.DataArray):
+        return _update_history(f, "Calculated coriolis_parameter.")
     return f
 
 
 def relative_vorticity(
     u: Union[np.ndarray, xr.DataArray],
     v: Union[np.ndarray, xr.DataArray],
-    dx: float,
-    dy: float
+    dx: float = 1.0,
+    dy: float = 1.0,
 ) -> Union[np.ndarray, xr.DataArray]:
-    """
-    Calculate relative vorticity (ζ = ∂v/∂x - ∂u/∂y).
-    
-    Parameters
-    ----------
-    u : numpy.ndarray or xarray.DataArray
-        Eastward wind component (m/s)
-    v : numpy.ndarray or xarray.DataArray
-        Northward wind component (m/s)
-    dx : float
-        Grid spacing in x direction (m)
-    dy : float
-        Grid spacing in y direction (m)
-    
-    Returns
-    -------
-    numpy.ndarray or xarray.DataArray
-        Relative vorticity (s^-1)
-    """
-    # Calculate derivatives using finite differences
-    # ∂v/∂x
-    dv_dx = np.gradient(v, axis=-1) / dx
-    # ∂u/∂y
-    du_dy = np.gradient(u, axis=-2) / dy
-    
-    # Calculate relative vorticity: ζ = ∂v/∂x - ∂u/∂y
-    zeta = dv_dx - du_dy
-    
-    return zeta
+    """Calculate relative vorticity."""
+    if isinstance(u, xr.DataArray):
+        dims = u.dims
+        y_dim, x_dim = dims[-2], dims[-1]
+        dv_dx = v.differentiate(x_dim) / dx
+        du_dy = u.differentiate(y_dim) / dy
+        vort = dv_dx - du_dy
+        return _update_history(vort, "Calculated relative vorticity.")
+    else:
+        u_arr = np.asanyarray(u)
+        v_arr = np.asanyarray(v)
+        dv_dx = np.gradient(v_arr, axis=-1) / dx
+        du_dy = np.gradient(u_arr, axis=-2) / dy
+        return dv_dx - du_dy
 
 
 def absolute_vorticity(
     u: Union[np.ndarray, xr.DataArray],
     v: Union[np.ndarray, xr.DataArray],
-    dx: float,
-    dy: float,
-    latitude: Union[np.ndarray, xr.DataArray]
+    latitude: Union[float, np.ndarray, xr.DataArray],
+    dx: float = 1.0,
+    dy: float = 1.0,
 ) -> Union[np.ndarray, xr.DataArray]:
-    """
-    Calculate absolute vorticity (η = ζ + f).
-    
-    Parameters
-    ----------
-    u : numpy.ndarray or xarray.DataArray
-        Eastward wind component (m/s)
-    v : numpy.ndarray or xarray.DataArray
-        Northward wind component (m/s)
-    dx : float
-        Grid spacing in x direction (m)
-    dy : float
-        Grid spacing in y direction (m)
-    latitude : numpy.ndarray or xarray.DataArray
-        Latitude array (radians)
-    
-    Returns
-    -------
-    numpy.ndarray or xarray.DataArray
-        Absolute vorticity (s^-1)
-    """
-    # Calculate relative vorticity
+    """Calculate absolute vorticity."""
     zeta = relative_vorticity(u, v, dx, dy)
-    
-    # Calculate Coriolis parameter
     f = coriolis_parameter(latitude)
-    
-    # Calculate absolute vorticity: η = ζ + f
-    eta = zeta + f
-    
-    return eta
+    abs_vort = zeta + f
+    if isinstance(abs_vort, xr.DataArray):
+        return _update_history(abs_vort, "Calculated absolute vorticity.")
+    return abs_vort
+
+
+def geostrophic_wind(
+    height: Union[np.ndarray, xr.DataArray],
+    dx: float = 1.0,
+    dy: float = 1.0,
+    latitude: Optional[Union[float, np.ndarray, xr.DataArray]] = None,
+    f: Optional[Union[float, np.ndarray, xr.DataArray]] = None,
+) -> Tuple[Any, Any]:
+    """Calculate geostrophic wind."""
+    g = 9.80665
+    if f is None:
+        if latitude is None:
+            f = f0_default
+        else:
+            if isinstance(latitude, (xr.DataArray, np.ndarray)):
+                phi = latitude
+            else:
+                phi = latitude if latitude < 2 * np.pi else np.deg2rad(latitude)
+            f = 2 * omega * np.sin(phi)
+
+    if isinstance(height, xr.DataArray):
+        dims = height.dims
+        y_dim, x_dim = dims[-2], dims[-1]
+        dh_dy = height.differentiate(y_dim) / dy
+        dh_dx = height.differentiate(x_dim) / dx
+        ug = -(g / f) * dh_dy
+        vg = (g / f) * dh_dx
+        return _update_history(ug, "Calculated geostrophic_wind (u)."), _update_history(
+            vg, "Calculated geostrophic_wind (v)."
+        )
+    else:
+        h_arr = np.asanyarray(height)
+        dh_dy = np.gradient(h_arr, axis=-2) / dy
+        dh_dx = np.gradient(h_arr, axis=-1) / dx
+        ug = -(g / f) * dh_dy
+        vg = (g / f) * dh_dx
+        return ug, vg
+
+
+def gradient_wind(
+    radius: Union[float, np.ndarray, xr.DataArray],
+    pressure_gradient: Union[float, np.ndarray, xr.DataArray],
+    density: Union[float, np.ndarray, xr.DataArray],
+    f: Optional[Union[float, np.ndarray, xr.DataArray]] = None,
+) -> Union[float, np.ndarray, xr.DataArray]:
+    """
+    Calculate gradient wind speed.
+    V = -fR/2 + (fR/2) * sqrt(1 + 4/(f^2 R rho) * (-dP/dR))
+    Wait, let's use the other form: V = -fR/2 + sqrt((fR/2)^2 - R/rho * dP/dR)
+    """
+    if f is None:
+        f = f0_default
+
+    term1 = f * radius / 2.0
+    # Equation: V^2/R + fV + (1/rho) dP/dR = 0
+    # V = [-f +/- sqrt(f^2 - 4(1/R)(1/rho dP/dR))] / (2/R)
+    # V = -fR/2 + sqrt((fR/2)^2 - (R/rho) * dP/dR)
+    term2 = (radius / density) * pressure_gradient
+    v_grad = -term1 + np.sqrt(term1**2 - term2)
+
+    if isinstance(v_grad, xr.DataArray):
+        return _update_history(v_grad, "Calculated gradient_wind.")
+    return v_grad
+
+
+def advection(
+    scalar: Union[np.ndarray, xr.DataArray],
+    u: Union[np.ndarray, xr.DataArray],
+    v: Union[np.ndarray, xr.DataArray],
+    dx: float = 1.0,
+    dy: float = 1.0,
+) -> Union[np.ndarray, xr.DataArray]:
+    """Calculate horizontal advection."""
+    if isinstance(scalar, xr.DataArray):
+        dims = scalar.dims
+        y_dim, x_dim = dims[-2], dims[-1]
+        ds_dx = scalar.differentiate(x_dim) / dx
+        ds_dy = scalar.differentiate(y_dim) / dy
+        adv = -(u * ds_dx + v * ds_dy)
+        return _update_history(adv, "Calculated horizontal advection.")
+    else:
+        s_arr = np.asanyarray(scalar)
+        ds_dy = np.gradient(s_arr, axis=-2) / dy
+        ds_dx = np.gradient(s_arr, axis=-1) / dx
+        return -(u * ds_dx + v * ds_dy)
 
 
 def divergence(
     u: Union[np.ndarray, xr.DataArray],
     v: Union[np.ndarray, xr.DataArray],
-    dx: float,
-    dy: float
+    dx: float = 1.0,
+    dy: float = 1.0,
 ) -> Union[np.ndarray, xr.DataArray]:
-    """
-    Calculate horizontal divergence (∇·V = ∂u/∂x + ∂v/∂y).
-    
-    Parameters
-    ----------
-    u : numpy.ndarray or xarray.DataArray
-        Eastward wind component (m/s)
-    v : numpy.ndarray or xarray.DataArray
-        Northward wind component (m/s)
-    dx : float
-        Grid spacing in x direction (m)
-    dy : float
-        Grid spacing in y direction (m)
-    
-    Returns
-    -------
-    numpy.ndarray or xarray.DataArray
-        Horizontal divergence (s^-1)
-    """
-    # Calculate derivatives using finite differences
-    # ∂u/∂x
-    du_dx = np.gradient(u, axis=-1) / dx
-    # ∂v/∂y
-    dv_dy = np.gradient(v, axis=-2) / dy
-    
-    # Calculate divergence: ∇·V = ∂u/∂x + ∂v/∂y
-    div = du_dx + dv_dy
-    
-    return div
-
-
-def geostrophic_wind(
-    height: Union[np.ndarray, xr.DataArray],
-    dx: float,
-    dy: float,
-    latitude: Union[np.ndarray, xr.DataArray]
-) -> Tuple[Union[np.ndarray, xr.DataArray], Union[np.ndarray, xr.DataArray]]:
-    """
-    Calculate geostrophic wind from height field.
-    
-    Parameters
-    ----------
-    height : numpy.ndarray or xarray.DataArray
-        Geopotential height field (m²/s²)
-    dx : float
-        Grid spacing in x direction (m)
-    dy : float
-        Grid spacing in y direction (m)
-    latitude : numpy.ndarray or xarray.DataArray
-        Latitude array (radians)
-    
-    Returns
-    -------
-    tuple of numpy.ndarray or xarray.DataArray
-        Geostrophic wind components (u_g, v_g) in m/s
-    """
-    # Calculate Coriolis parameter
-    f = coriolis_parameter(latitude)
-    
-    # Calculate derivatives of height field
-    # ∂h/∂x
-    dh_dx = np.gradient(height, axis=-1) / dx
-    # ∂h/∂y
-    dh_dy = np.gradient(height, axis=-2) / dy
-    
-    # Calculate geostrophic wind components
-    # u_g = -g/f * ∂h/∂y
-    u_g = -(g / f) * dh_dy
-    # v_g = g/f * ∂h/∂x
-    v_g = (g / f) * dh_dx
-    
-    return u_g, v_g
-
-
-def gradient_wind(
-    pressure: Union[np.ndarray, xr.DataArray],
-    dx: float,
-    dy: float,
-    latitude: Union[np.ndarray, xr.DataArray],
-    radius: Union[np.ndarray, xr.DataArray]
-) -> Union[np.ndarray, xr.DataArray]:
-    """
-    Calculate gradient wind speed.
-    
-    Parameters
-    ----------
-    pressure : numpy.ndarray or xarray.DataArray
-        Pressure gradient (Pa/m)
-    dx : float
-        Grid spacing in x direction (m)
-    dy : float
-        Grid spacing in y direction (m)
-    latitude : numpy.ndarray or xarray.DataArray
-        Latitude array (radians)
-    radius : numpy.ndarray or xarray.DataArray
-        Radius of curvature (m)
-    
-    Returns
-    -------
-    numpy.ndarray or xarray.DataArray
-        Gradient wind speed (m/s)
-    """
-    # Calculate Coriolis parameter
-    f = coriolis_parameter(latitude)
-    
-    # Calculate pressure gradient force
-    # For a circular flow: Vg^2 + f*R*Vg - (R/r)*dP/dn = 0
-    # Solving the quadratic equation for Vg
-    # This is a simplified version - in practice, more complex
-    
-    # For gradient wind in a curved flow:
-    # Vg = -f*r/2 + sqrt((f*r/2)^2 + (r^2/ρ)*dP/dn)
-    # where ρ is density and dP/dn is the pressure gradient normal to flow
-    
-    # Simplified approach using geostrophic wind as base
-    # with correction for curvature
-    # This is a simplified version - a full implementation would be more complex
-    geostrophic_speed = np.sqrt(dx**2 + dy**2) * np.abs(pressure) / (f * radius)
-    
-    # Use quadratic formula for gradient wind
-    # Vg^2 + f*radius*Vg - radius*pressure_gradient = 0
-    # Vg = (-f*radius + sqrt((f*radius)^2 + 4*radius*pressure_gradient)) / 2
-    # This is still a simplification
-    
-    # For now, return geostrophic wind as approximation
-    return geostrophic_speed
+    """Calculate horizontal divergence."""
+    if isinstance(u, xr.DataArray):
+        dims = u.dims
+        y_dim, x_dim = dims[-2], dims[-1]
+        du_dx = u.differentiate(x_dim) / dx
+        dv_dy = v.differentiate(y_dim) / dy
+        div = du_dx + dv_dy
+        return _update_history(div, "Calculated horizontal divergence.")
+    else:
+        u_arr = np.asanyarray(u)
+        v_arr = np.asanyarray(v)
+        du_dx = np.gradient(u_arr, axis=-1) / dx
+        dv_dy = np.gradient(v_arr, axis=-2) / dy
+        return du_dx + dv_dy
 
 
 def potential_vorticity(
     u: Union[np.ndarray, xr.DataArray],
     v: Union[np.ndarray, xr.DataArray],
-    theta: Union[np.ndarray, xr.DataArray],
-    dx: float,
-    dy: float,
-    latitude: Union[np.ndarray, xr.DataArray],
-    pressure: Union[np.ndarray, xr.DataArray]
+    latitude: Union[float, np.ndarray, xr.DataArray],
+    potential_temperature: Union[np.ndarray, xr.DataArray],
+    pressure: Union[np.ndarray, xr.DataArray],
+    dx: float = 1.0,
+    dy: float = 1.0,
 ) -> Union[np.ndarray, xr.DataArray]:
-    """
-    Calculate Ertel's potential vorticity.
-    
-    Parameters
-    ----------
-    u : numpy.ndarray or xarray.DataArray
-        Eastward wind component (m/s)
-    v : numpy.ndarray or xarray.DataArray
-        Northward wind component (m/s)
-    theta : numpy.ndarray or xarray.DataArray
-        Potential temperature (K)
-    dx : float
-        Grid spacing in x direction (m)
-    dy : float
-        Grid spacing in y direction (m)
-    latitude : numpy.ndarray or xarray.DataArray
-        Latitude array (radians)
-    pressure : numpy.ndarray or xarray.DataArray
-        Pressure (Pa)
-    
-    Returns
-    -------
-    numpy.ndarray or xarray.DataArray
-        Potential vorticity (K m² kg^-1 s^-1)
-    """
-    # Calculate absolute vorticity
-    eta = absolute_vorticity(u, v, dx, dy, latitude)
-    
-    # Calculate gradients of potential temperature
-    dtheta_dx = np.gradient(theta, axis=-1) / dx
-    dtheta_dy = np.gradient(theta, axis=-2) / dy
-    dtheta_dp = np.gradient(theta, axis=-3) / np.gradient(pressure, axis=-3) # assuming pressure is on axis -3
-    
-    # Calculate potential vorticity: PV = -g * (eta · ∇θ)
-    # In pressure coordinates: PV = -g * (η · ∇_p θ)
-    # For the vertical component: PV = -g * (η · ∇θ) = -g * (ζ + f) * ∂θ/∂p
-    pv = -g * eta * dtheta_dp  # Simplified vertical component
-    
-    return pv
+    """Calculate potential vorticity."""
+    g = 9.80665
+    abs_vort = absolute_vorticity(u, v, latitude, dx, dy)
+
+    if isinstance(potential_temperature, xr.DataArray):
+        v_dim = "pressure" if "pressure" in potential_temperature.dims else "lev"
+        dtheta_dp = potential_temperature.differentiate(v_dim)
+        p_val = np.asanyarray(pressure)
+        if np.any(p_val < 2000):
+            dtheta_dp = dtheta_dp / 100.0
+        pv = -g * abs_vort * dtheta_dp
+        return _update_history(pv, "Calculated potential_vorticity.")
+    else:
+        pt_arr = np.asanyarray(potential_temperature)
+        p_arr = np.asanyarray(pressure)
+        dtheta_dp = np.gradient(pt_arr, p_arr, axis=0)
+        return -g * abs_vort * dtheta_dp
 
 
 def vertical_velocity_pressure(
-    omega: Union[np.ndarray, xr.DataArray],
-    pressure: Union[np.ndarray, xr.DataArray],
-    temperature: Union[np.ndarray, xr.DataArray],
-    mixing_ratio: Union[np.ndarray, xr.DataArray] = None
-) -> Union[np.ndarray, xr.DataArray]:
-    """
-    Convert omega (pressure vertical velocity) to w (geometric vertical velocity).
-    
-    Parameters
-    ----------
-    omega : numpy.ndarray or xarray.DataArray
-        Vertical velocity in pressure coordinates (Pa/s)
-    pressure : numpy.ndarray or xarray.DataArray
-        Pressure (Pa)
-    temperature : numpy.ndarray or xarray.DataArray
-        Temperature (K)
-    mixing_ratio : numpy.ndarray or xarray.DataArray, optional
-        Mixing ratio (kg/kg), if not provided, assumed to be 0
-    
-    Returns
-    -------
-    numpy.ndarray or xarray.DataArray
-        Geometric vertical velocity (m/s)
-    """
-    from ..constants import R_d
-    
-    # If mixing ratio not provided, assume 0
-    if mixing_ratio is None:
-        mixing_ratio = np.zeros_like(temperature) if isinstance(temperature, np.ndarray) else 0
-    
-    # Calculate virtual temperature
-    t_virt = temperature * (1 + 0.61 * mixing_ratio)
-    
-    # Calculate air density using ideal gas law
-    rho = pressure / (R_d * t_virt)
-    
-    # Convert omega to w using: w = -omega / (rho * g)
-    w = -omega / (rho * g)
-    
-    return w
+    divergence_val: xr.DataArray,
+    pressure: xr.DataArray,
+    surface_omega: float = 0.0,
+) -> xr.DataArray:
+    """Calculate vertical velocity."""
+    v_dim = "pressure" if "pressure" in divergence_val.dims else "lev"
+    omega_val = surface_omega + divergence_val.cumulative_integrate(v_dim)
+    return _update_history(omega_val, "Calculated vertical_velocity_pressure.")
 
 
 def omega_to_w(
-    omega: Union[np.ndarray, xr.DataArray],
-    pressure: Union[np.ndarray, xr.DataArray],
-    temperature: Union[np.ndarray, xr.DataArray],
-    mixing_ratio: Union[np.ndarray, xr.DataArray] = None
-) -> Union[np.ndarray, xr.DataArray]:
-    """
-    Convert omega (pressure vertical velocity) to w (geometric vertical velocity).
-    
-    Parameters
-    ----------
-    omega : numpy.ndarray or xarray.DataArray
-        Vertical velocity in pressure coordinates (Pa/s)
-    pressure : numpy.ndarray or xarray.DataArray
-        Pressure (Pa)
-    temperature : numpy.ndarray or xarray.DataArray
-        Temperature (K)
-    mixing_ratio : numpy.ndarray or xarray.DataArray, optional
-        Mixing ratio (kg/kg), if not provided, assumed to be 0
-    
-    Returns
-    -------
-    numpy.ndarray or xarray.DataArray
-        Geometric vertical velocity (m/s)
-    """
-    return vertical_velocity_pressure(omega, pressure, temperature, mixing_ratio)
+    omega_val: Union[float, np.ndarray, xr.DataArray],
+    pressure: Union[float, np.ndarray, xr.DataArray],
+    temperature: Union[float, np.ndarray, xr.DataArray],
+    mixing_ratio: Union[float, np.ndarray, xr.DataArray] = 0.0,
+) -> Union[float, np.ndarray, xr.DataArray]:
+    """Convert omega to w."""
+    g = 9.80665
+    R_d = 287.04
+    tv = temperature * (1 + 0.61 * mixing_ratio)
+    rho = pressure / (R_d * tv)
+    w = -omega_val / (rho * g)
+    if isinstance(w, xr.DataArray):
+        return _update_history(w, "Converted omega to w.")
+    return w

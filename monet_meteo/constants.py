@@ -36,4 +36,7 @@ L_s0: Final[float] = L_v0 + L_f0
 # Earth's radius (m)
 R_earth: Final[float] = 6.371e6
 # Earth's rotation rate (s-1)
-Omega: Final[float] = 7.292e-5
+Omega: Final[float] = 7.2921159e-5
+omega: Final[float] = Omega
+# Default Coriolis parameter (s-1) at 45°N
+f0_default: Final[float] = 1.031e-4

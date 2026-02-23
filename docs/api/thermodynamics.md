@@ -319,7 +319,7 @@ dewpoint = 283.15  # K
 theta = mm.potential_temperature(pressure, temperature)
 virtual_temp = mm.virtual_temperature(temperature, 0.008)
 mixing_ratio = mm.mixing_ratio(
-    mm.saturation_vapor_pressure(dewpoint), 
+    mm.saturation_vapor_pressure(dewpoint),
     pressure * 100
 )
 ```
@@ -413,7 +413,7 @@ def process_large_dataset(data_chunk):
     """Process a chunk of atmospheric data"""
     result = {}
     result['theta'] = mm.potential_temperature(
-        data_chunk['pressure'], 
+        data_chunk['pressure'],
         data_chunk['temperature']
     )
     result['mixing_ratio'] = mm.mixing_ratio(

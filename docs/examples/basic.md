@@ -158,11 +158,11 @@ for i, city1 in enumerate(city_names):
     lat1, lon1 = cities[city1]
     for city2 in city_names[i+1:]:
         lat2, lon2 = cities[city2]
-        
+
         # Calculate distance
         distance = mm.calculate_distance(lat1, lon1, lat2, lon2)
         bearing = mm.bearing(lat1, lon1, lat2, lon2)
-        
+
         print(f"{city1} to {city2}: "
               f"{distance/1000:.0f} km, "
               f"Bearing: {bearing:.0f}°")
@@ -259,21 +259,21 @@ def analyze_weather_conditions(pressure, temperature, dewpoint, wind_speed, wind
     """
     # Convert units if needed
     pressure_pa = mm.convert_pressure(pressure, 'hPa', 'Pa')
-    
+
     # Calculate thermodynamic properties
     theta = mm.potential_temperature(pressure, temperature)
     mixing_ratio = mm.mixing_ratio(
         mm.saturation_vapor_pressure(dewpoint), pressure_pa
     )
-    
+
     # Calculate comfort indices
     heat_index = mm.heat_index(temperature, relative_humidity=0.6)
     wind_chill = mm.wind_chill(temperature, wind_speed)
-    
+
     # Stability analysis
     u_wind, v_wind = mm.wind_components(wind_speed, wind_dir)
     ri = mm.bulk_richardson_number(u_wind, v_wind, theta, 10.0)
-    
+
     # Weather classification
     if ri < -0.5:
         stability = "Very Unstable"
@@ -285,7 +285,7 @@ def analyze_weather_conditions(pressure, temperature, dewpoint, wind_speed, wind
         stability = "Stable"
     else:
         stability = "Very Stable"
-    
+
     return {
         'potential_temperature': theta,
         'mixing_ratio': mixing_ratio,
@@ -297,11 +297,11 @@ def analyze_weather_conditions(pressure, temperature, dewpoint, wind_speed, wind
 
 # Example weather station data
 weather_data = [
-    {'pressure': 1013.25, 'temperature': 298.15, 'dewpoint': 290.15, 
+    {'pressure': 1013.25, 'temperature': 298.15, 'dewpoint': 290.15,
      'wind_speed': 5.0, 'wind_dir': 270},
-    {'pressure': 1010.0, 'temperature': 295.15, 'dewpoint': 288.15, 
+    {'pressure': 1010.0, 'temperature': 295.15, 'dewpoint': 288.15,
      'wind_speed': 8.0, 'wind_dir': 315},
-    {'pressure': 1005.0, 'temperature': 292.15, 'dewpoint': 285.15, 
+    {'pressure': 1005.0, 'temperature': 292.15, 'dewpoint': 285.15,
      'wind_speed': 3.0, 'wind_dir': 180}
 ]
 

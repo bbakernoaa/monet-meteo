@@ -44,12 +44,12 @@ from datetime import datetime, timedelta
 def process_era5_data(filepath):
     """
     Process ERA5 reanalysis data to calculate atmospheric variables
-    
+
     Parameters
     ----------
     filepath : str
         Path to ERA5 netCDF file
-        
+
     Returns
     -------
     xarray.Dataset
@@ -57,17 +57,17 @@ def process_era5_data(filepath):
     """
     # Open dataset with dask for lazy loading
     ds = xr.open_dataset(
-        filepath, 
+        filepath,
         chunks={'time': 10, 'latitude': 50, 'longitude': 50}  # Chunking for parallel processing
     )
-    
+
     # Convert units if needed
     ds['temperature'] = mm.convert_temperature(ds.t2m, 'K', 'C')
     ds['pressure'] = mm.convert_pressure(ds.sp, 'Pa', 'hPa')
-    
+
     # Calculate geopotential height from pressure (simplified)
     ds['height'] = mm.pressure_to_altitude(ds.pressure)
-    
+
     # Calculate derived parameters
     ds['potential_temperature'] = xr.apply_ufunc(
         mm.potential_temperature,
@@ -77,7 +77,7 @@ def process_era5_data(filepath):
         vectorize=True,
         dask='parallelized'
     )
-    
+
     # Calculate specific humidity from relative humidity
     ds['sat_vapor_pressure'] = xr.apply_ufunc(
         mm.saturation_vapor_pressure,
@@ -87,7 +87,7 @@ def process_era5_data(filepath):
         vectorize=True,
         dask='parallelized'
     )
-    
+
     ds['vapor_pressure'] = ds.rh * ds.sat_vapor_pressure / 100
     ds['mixing_ratio'] = xr.apply_ufunc(
         mm.mixing_ratio,
@@ -97,7 +97,7 @@ def process_era5_data(filepath):
         vectorize=True,
         dask='parallelized'
     )
-    
+
     return ds
 
 # Example usage
@@ -110,14 +110,14 @@ def process_era5_data(filepath):
 def process_ensemble_data(file_pattern, variables):
     """
     Process multiple climate model ensemble members
-    
+
     Parameters
     ----------
     file_pattern : str
         Pattern for ensemble files (e.g., 'model_*.nc')
     variables : list
         List of variables to process
-        
+
     Returns
     -------
     xarray.Dataset
@@ -133,20 +133,20 @@ def process_ensemble_data(file_pattern, variables):
             'uas': 'u_wind',
             'vas': 'v_wind'
         }
-        
+
         # Rename variables
         for old_name, new_name in name_mapping.items():
             if old_name in ds:
                 ds = ds.rename({old_name: new_name})
-        
+
         # Convert units
         if 'temperature' in ds:
             ds['temperature'] = mm.convert_temperature(ds.temperature, 'K', 'C')
         if 'pressure' in ds:
             ds['pressure'] = mm.convert_pressure(ds.pressure, 'Pa', 'hPa')
-            
+
         return ds
-    
+
     # Open ensemble data with chunks
     ensemble_ds = xr.open_mfdataset(
         file_pattern,
@@ -154,11 +154,11 @@ def process_ensemble_data(file_pattern, variables):
         preprocess=preprocess,
         parallel=True
     )
-    
+
     # Process each ensemble member
     for member in ensemble_ds.member.values:
         member_ds = ensemble_ds.sel(member=member)
-        
+
         # Calculate atmospheric variables for this member
         member_ds['potential_temperature'] = xr.apply_ufunc(
             mm.potential_temperature,
@@ -168,10 +168,10 @@ def process_ensemble_data(file_pattern, variables):
             vectorize=True,
             dask='parallelized'
         )
-        
+
         # Calculate wind speed
         member_ds['wind_speed'] = np.sqrt(member_ds.u_wind**2 + member_ds.v_wind**2)
-        
+
         # Calculate bulk Richardson number
         member_ds['richardson_number'] = xr.apply_ufunc(
             mm.bulk_richardson_number,
@@ -182,7 +182,7 @@ def process_ensemble_data(file_pattern, variables):
             vectorize=True,
             dask='parallelized'
         )
-    
+
     return ensemble_ds
 
 # Example usage
@@ -197,12 +197,12 @@ def process_ensemble_data(file_pattern, variables):
 def analyze_climate_timeseries(filepath):
     """
     Analyze climate time series with seasonal and trend calculations
-    
+
     Parameters
     ----------
     filepath : str
         Path to climate time series data
-        
+
     Returns
     -------
     dict
@@ -210,26 +210,26 @@ def analyze_climate_timeseries(filepath):
     """
     # Load data with appropriate chunking
     ds = xr.open_dataset(
-        filepath, 
+        filepath,
         chunks={'time': 365, 'lat': 20, 'lon': 20}  # Annual chunks
     )
-    
+
     # Calculate seasonal means
     seasonal_means = ds.groupby('time.season').mean()
-    
+
     # Calculate climatological means
     climatology = ds.groupby('time.month').mean()
-    
+
     # Calculate anomalies
     monthly_anomalies = ds.groupby('time.month') - climatology
-    
+
     # Calculate trends using linear regression
     def calculate_trend(data):
         """Calculate linear trend over time"""
         time_coords = np.arange(len(data.time))
         trend = np.polyfit(time_coords, data.values, 1)[0]
         return trend
-    
+
     trend_da = xr.apply_ufunc(
         calculate_trend,
         ds.temperature,
@@ -238,14 +238,14 @@ def analyze_climate_timeseries(filepath):
         vectorize=True,
         dask='parallelized'
     )
-    
+
     # Calculate extreme statistics
     extreme_thresholds = {
         'hot_days': ds.temperature.quantile(0.95, dim='time'),
         'cold_days': ds.temperature.quantile(0.05, dim='time'),
         'heat_waves': (ds.temperature > ds.temperature.quantile(0.95, dim='time')).sum(dim='time')
     }
-    
+
     # Process with Monet-Meteo
     ds['heat_index'] = xr.apply_ufunc(
         mm.heat_index,
@@ -256,11 +256,11 @@ def analyze_climate_timeseries(filepath):
         vectorize=True,
         dask='parallelized'
     )
-    
+
     # Calculate heat wave frequency
     heat_wave_threshold = ds.heat_index.quantile(0.95, dim='time')
     heat_wave_frequency = (ds.heat_index > heat_wave_threshold).mean(dim='time')
-    
+
     return {
         'seasonal_means': seasonal_means,
         'monthly_anomalies': monthly_anomalies,
@@ -279,7 +279,7 @@ def analyze_climate_timeseries(filepath):
 def process_cmip6_data(base_path, models, scenarios):
     """
     Process CMIP6 multi-model climate projection data
-    
+
     Parameters
     ----------
     base_path : str
@@ -288,7 +288,7 @@ def process_cmip6_data(base_path, models, scenarios):
         List of CMIP6 model names
     scenarios : list
         List of scenarios (e.g., 'ssp245', 'ssp585')
-        
+
     Returns
     -------
     xarray.Dataset
@@ -296,37 +296,37 @@ def process_cmip6_data(base_path, models, scenarios):
     """
     # Create dataset list
     datasets = []
-    
+
     for model in models:
         for scenario in scenarios:
             # Pattern for CMIP6 files
             pattern = f"{base_path}/{model}/{scenario}/*.nc"
-            
+
             # Load data with preprocessing
             ds = xr.open_mfdataset(
                 pattern,
                 chunks={'time': 365, 'lat': 30, 'lon': 30},
                 parallel=True
             )
-            
+
             # Standardize time coordinate
             ds['time'] = xr.decode_cf(ds).time
-            
+
             # Calculate climate change indices
             ds['txx'] = ds.temperature.max(dim='time')  # Maximum temperature
             ds['tmin'] = ds.temperature.min(dim='time')  # Minimum temperature
             ds['gdd'] = (ds.temperature > 10).sum(dim='time')  # Growing degree days
-            
+
             # Calculate ensemble statistics
             ds['model_mean'] = ds.mean(dim='model')
             ds['model_std'] = ds.std(dim='model')
             ds['model_range'] = ds.max(dim='model') - ds.min(dim='model')
-            
+
             datasets.append(ds)
-    
+
     # Combine datasets
     combined = xr.concat(datasets, dim='scenario')
-    
+
     return combined
 
 # Example usage
@@ -345,7 +345,7 @@ def process_cmip6_data(base_path, models, scenarios):
 def analyze_regional_climate(ds, region_name, bounds):
     """
     Analyze climate data for a specific region
-    
+
     Parameters
     ----------
     ds : xarray.Dataset
@@ -354,30 +354,30 @@ def analyze_regional_climate(ds, region_name, bounds):
         Name of the region
     bounds : tuple
         (min_lat, max_lat, min_lon, max_lon) bounding box
-        
+
     Returns
     -------
     dict
         Regional climate analysis results
     """
     min_lat, max_lat, min_lon, max_lon = bounds
-    
+
     # Select region
     regional_ds = ds.sel(
         lat=slice(min_lat, max_lat),
         lon=slice(min_lon, max_lon)
     )
-    
+
     # Calculate regional means
     regional_mean = regional_ds.mean(dim=['lat', 'lon'])
     regional_max = regional_ds.max(dim=['lat', 'lon'])
     regional_min = regional_ds.min(dim=['lat', 'lon'])
-    
+
     # Calculate climate indices
     tropical_days = (regional_ds.temperature > 25).sum(dim='time')
     frost_days = (regional_ds.temperature < 0).sum(dim='time')
     growing_season_length = (regional_ds.temperature > 5).sum(dim='time')
-    
+
     # Calculate atmospheric stability
     regional_ds['stability'] = xr.apply_ufunc(
         mm.bulk_richardson_number,
@@ -388,21 +388,21 @@ def analyze_regional_climate(ds, region_name, bounds):
         vectorize=True,
         dask='parallelized'
     )
-    
+
     # Calculate precipitation-related variables
     if 'precipitation' in regional_ds:
         # Convert to mm/day
         regional_ds['precipitation'] = regional_ds.precipitation * 86400
-        
+
         # Calculate wet days (precip > 1mm)
         wet_days = (regional_ds.precipitation > 1).sum(dim='time')
-        
+
         # Calculate extreme precipitation
         extreme_precip = regional_ds.precipitation.quantile(0.95, dim='time')
     else:
         wet_days = None
         extreme_precip = None
-    
+
     return {
         'region_name': region_name,
         'bounds': bounds,
@@ -419,7 +419,7 @@ def analyze_regional_climate(ds, region_name, bounds):
 
 # Example usage
 # northeast_us = analyze_regional_climate(
-#     ds, 
+#     ds,
 #     'Northeast US',
 #     (35, 45, -80, -65)
 # )
@@ -431,7 +431,7 @@ def analyze_regional_climate(ds, region_name, bounds):
 def detect_climate_change(historical_data, future_data, reference_period=1995-2014):
     """
     Detect and quantify climate change signals
-    
+
     Parameters
     ----------
     historical_data : xarray.Dataset
@@ -440,7 +440,7 @@ def detect_climate_change(historical_data, future_data, reference_period=1995-20
         Future climate projection data
     reference_period : tuple
         Reference period for baseline
-        
+
     Returns
     -------
     dict
@@ -450,14 +450,14 @@ def detect_climate_change(historical_data, future_data, reference_period=1995-20
     baseline = historical_data.sel(
         time=slice(f'{reference_period[0]}-01-01', f'{reference_period[1]}-12-31')
     ).mean(dim='time')
-    
+
     # Calculate future means
     future_mean = future_data.mean(dim='time')
-    
+
     # Calculate change signals
     absolute_change = future_mean - baseline
     relative_change = (absolute_change / baseline) * 100
-    
+
     # Calculate change significance using bootstrap
     def bootstrap_trend(data, n_bootstrap=100):
         """Calculate trend uncertainty using bootstrap"""
@@ -467,7 +467,7 @@ def detect_climate_change(historical_data, future_data, reference_period=1995-20
             trend = np.polyfit(np.arange(len(sample.time)), sample.values, 1)[0]
             trends.append(trend)
         return np.std(trends)
-    
+
     # Calculate trend uncertainties
     trend_uncertainty = xr.apply_ufunc(
         bootstrap_trend,
@@ -477,16 +477,16 @@ def detect_climate_change(historical_data, future_data, reference_period=1995-20
         vectorize=True,
         dask='parallelized'
     )
-    
+
     # Calculate exceedance probabilities
     threshold = baseline.temperature + 2 * baseline.temperature.std()
     exceedance_prob = (future_data.temperature > threshold).mean(dim='time')
-    
+
     # Calculate extreme event changes
     historical_extremes = historical_data.temperature.quantile(0.99, dim='time')
     future_extremes = future_data.temperature.quantile(0.99, dim='time')
     extreme_change = future_extremes - historical_extremes
-    
+
     return {
         'baseline': baseline,
         'future_mean': future_mean,
@@ -510,14 +510,14 @@ def detect_climate_change(historical_data, future_data, reference_period=1995-20
 def optimized_climate_processing(data_path, output_path):
     """
     Optimized processing of large climate datasets
-    
+
     Parameters
     ----------
     data_path : str
         Input data path
     output_path : str
         Output path for processed data
-        
+
     Returns
     -------
     None
@@ -525,34 +525,34 @@ def optimized_climate_processing(data_path, output_path):
     # Set up dask for optimal performance
     from dask.distributed import Client
     client = Client(n_workers=4, memory_limit='8GB')
-    
+
     # Configure chunking strategy
     chunk_size = {'time': 730, 'lat': 90, 'lon': 90}  # 2-year chunks
-    
+
     # Load data with optimized chunking
     ds = xr.open_dataset(
         data_path,
         chunks=chunk_size,
         engine='zarr'  # Use zarr for better performance
     )
-    
+
     # Process in memory-efficient chunks
     def process_chunk(chunk):
         """Process a single chunk of data"""
         # Convert units
         chunk['temperature'] = mm.convert_temperature(chunk.t2m, 'K', 'C')
         chunk['pressure'] = mm.convert_pressure(chunk.sp, 'Pa', 'hPa')
-        
+
         # Calculate atmospheric variables
         chunk['potential_temperature'] = mm.potential_temperature(
             chunk.pressure, chunk.temperature + 273.15
         )
-        
+
         # Calculate wind speed
         chunk['wind_speed'] = np.sqrt(chunk.uas**2 + chunk.vas**2)
-        
+
         return chunk
-    
+
     # Apply processing in parallel
     processed_ds = xr.map_blocks(
         process_chunk,
@@ -560,7 +560,7 @@ def optimized_climate_processing(data_path, output_path):
         template=ds,  # Preserve structure
         chunks=chunk_size
     )
-    
+
     # Save results with compression
     processed_ds.to_zarr(
         output_path,
@@ -570,10 +570,10 @@ def optimized_climate_processing(data_path, output_path):
             'potential_temperature': {'compressor': zarr.Blosc(cname='zstd', clevel=5)}
         }
     )
-    
+
     # Close dask client
     client.close()
-    
+
     print(f"Processing completed. Results saved to {output_path}")
 
 # Example usage
@@ -588,7 +588,7 @@ def optimized_climate_processing(data_path, output_path):
 def visualize_climate_change(change_data, variable_name, title):
     """
     Create visualizations for climate change analysis
-    
+
     Parameters
     ----------
     change_data : xarray.DataArray
@@ -597,17 +597,17 @@ def visualize_climate_change(change_data, variable_name, title):
         Name of the variable being plotted
     title : str
         Plot title
-        
+
     Returns
     -------
     matplotlib.figure.Figure
         Generated figure
     """
     fig = plt.figure(figsize=(15, 10))
-    
+
     # Create map projection
     ax = plt.axes(projection=ccrs.PlateCarree())
-    
+
     # Plot data
     im = change_data.plot(
         ax=ax,
@@ -615,19 +615,19 @@ def visualize_climate_change(change_data, variable_name, title):
         cmap='RdBu_r',
         cbar_kwargs={'label': f'Change in {variable_name}'}
     )
-    
+
     # Add geographic features
     ax.add_feature(cfeature.COASTLINE)
     ax.add_feature(cfeature.BORDERS, linestyle=':')
     ax.add_feature(cfeature.OCEANS, color='lightblue')
     ax.add_feature(cfeature.LAND, color='lightgray')
-    
+
     # Set title
     ax.set_title(title, fontsize=16, fontweight='bold')
-    
+
     # Add grid
     ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
-    
+
     return fig
 
 # Example usage

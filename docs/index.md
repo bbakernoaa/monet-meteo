@@ -211,12 +211,12 @@ interpolated_field = mm.interpolate_horizontal(
 def analyze_climate_trends(climate_data):
     # Calculate climatological statistics
     seasonal_means = climate_data.groupby('season').mean()
-    
+
     # Analyze temperature trends with thermodynamics
     potential_temps = mm.potential_temperature(
         climate_data['pressure'], climate_data['temperature']
     )
-    
+
     return seasonal_means, potential_temps
 ```
 
@@ -225,7 +225,7 @@ def analyze_climate_trends(climate_data):
 def process_model_output(model_data):
     # Interpolate to pressure levels
     standard_levels = [1000, 850, 700, 500, 300]  # hPa
-    
+
     for variable in ['temperature', 'u_wind', 'v_wind', 'humidity']:
         if variable in model_data:
             if variable in ['u_wind', 'v_wind']:
@@ -239,7 +239,7 @@ def process_model_output(model_data):
                 model_data[f'{variable}_interp'] = mm.xr_interpolate_vertical(
                     model_data[variable], 'pressure', standard_levels
                 )
-    
+
     return model_data
 ```
 
@@ -253,7 +253,7 @@ def calculate_surface_fluxes(met_data):
         met_data['sensible_heat_flux'],
         met_data['latent_heat_flux']
     )
-    
+
     # Calculate surface energy balance
     energy_balance = mm.surface_energy_balance(
         met_data['incoming_shortwave'],
@@ -263,7 +263,7 @@ def calculate_surface_fluxes(met_data):
         met_data['latent_heat_flux'],
         met_data['ground_heat_flux']
     )
-    
+
     return {
         'monin_obukhov_length': monin_obukhov_length,
         'energy_balance': energy_balance
@@ -290,7 +290,7 @@ Process large datasets efficiently:
 # Process large datasets in chunks
 def process_large_climate_data(filepath, chunk_size=1000):
     dataset = mm.load_netcdf_dataset(filepath)
-    
+
     for i in range(0, len(dataset.time), chunk_size):
         chunk = dataset.isel(time=slice(i, i + chunk_size))
         process_chunk(chunk)

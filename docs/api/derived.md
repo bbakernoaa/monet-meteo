@@ -173,21 +173,21 @@ def assess_human_comfort(temperature_k, relative_humidity, wind_speed_mps):
     """
     # Convert to more common units for comfort assessment
     temperature_c = mm.convert_temperature(temperature_k, 'K', 'C')
-    
+
     # Calculate comfort indices
     heat_index_k = mm.heat_index(temperature_k, relative_humidity)
     heat_index_c = mm.convert_temperature(heat_index_k, 'K', 'C')
-    
+
     wind_chill_k = mm.wind_chill(temperature_k, wind_speed_mps)
     wind_chill_c = mm.convert_temperature(wind_chill_k, 'K', 'C')
-    
+
     # Calculate dewpoint for humidity assessment
     dewpoint_k = mm.dewpoint_temperature(temperature_k, relative_humidity)
     dewpoint_c = mm.convert_temperature(dewpoint_k, 'K', 'C')
-    
+
     # Classify comfort levels
     comfort_assessment = classify_comfort_level(temperature_c, relative_humidity, wind_speed_mps)
-    
+
     return {
         'temperature_c': temperature_c,
         'heat_index_c': heat_index_c,
@@ -225,12 +225,12 @@ def classify_comfort_level(temp_c, rh, wind_speed_mps):
         comfort = "Cold"
     else:
         comfort = "Freezing"
-    
+
     if wind_speed_mps > 15:
         comfort += " - Very Windy"
     elif wind_speed_mps > 10:
         comfort += " - Windy"
-    
+
     return comfort
 
 # Example usage
@@ -248,22 +248,22 @@ def analyze_atmospheric_moisture(temperature_k, pressure_pa):
     """
     # Calculate saturation vapor pressure
     sat_vapor_pressure = mm.saturation_vapor_pressure(temperature_k)
-    
+
     # Calculate dewpoint for different relative humidity values
     rh_values = np.array([0.3, 0.5, 0.7, 0.9, 1.0])  # 30%, 50%, 70%, 90%, 100%
     dewpoints = [mm.dewpoint_temperature(temperature_k, rh) for rh in rh_values]
-    
+
     # Calculate lifting condensation level
     surface_dewpoint = dewpoints[-1]  # 100% RH
     lcl_height = mm.lifting_condensation_level(temperature_k, surface_dewpoint)
-    
+
     # Calculate mixing ratios
     mixing_ratios = []
     for rh in rh_values:
         actual_vapor_pressure = mm.actual_vapor_pressure(temperature_k, rh)
         mixing_ratio = mm.mixing_ratio(actual_vapor_pressure, pressure_pa)
         mixing_ratios.append(mixing_ratio)
-    
+
     return {
         'saturation_vapor_pressure': sat_vapor_pressure,
         'dewpoints': dict(zip([f'rh_{int(rh*100)}%' for rh in rh_values], dewpoints)),
@@ -287,38 +287,38 @@ def predict_weather_phenomena(temperature_k, relative_humidity, pressure_pa):
     dewpoint_k = mm.dewpoint_temperature(temperature_k, relative_humidity)
     wetbulb_k = mm.wet_bulb_temperature(temperature_k, pressure_pa, relative_humidity)
     lcl_height = mm.lifting_condensation_level(temperature_k, dewpoint_k)
-    
+
     # Convert to Celsius for easier interpretation
     temperature_c = mm.convert_temperature(temperature_k, 'K', 'C')
     dewpoint_c = mm.convert_temperature(dewpoint_k, 'K', 'C')
     wetbulb_c = mm.convert_temperature(wetbulb_k, 'K', 'C')
-    
+
     # Predict weather phenomena
     predictions = []
-    
+
     # Fog potential
     if wetbulb_c - temperature_c < 2.0 and relative_humidity > 0.9:
         predictions.append("High fog potential")
     elif wetbulb_c - temperature_c < 3.0 and relative_humidity > 0.8:
         predictions.append("Moderate fog potential")
-    
+
     # Dew/frost potential
     if temperature_c > 0 and relative_humidity > 0.95:
         predictions.append("High dew potential")
     elif temperature_c <= 0 and relative_humidity > 0.95:
         predictions.append("High frost potential")
-    
+
     # Precipitation potential (simplified)
     if lcl_height < 1000:  # LCL close to surface
         predictions.append("Low-level clouds likely")
     if lcl_height < 500:
         predictions.append("Potential for light precipitation")
-    
+
     # Visibility assessment
     visibility = assess_visibility(temperature_c, dewpoint_c)
     if visibility < 1000:
         predictions.append(f"Low visibility: {visibility:.0f} m")
-    
+
     return {
         'temperature_c': temperature_c,
         'dewpoint_c': dewpoint_c,
@@ -331,7 +331,7 @@ def predict_weather_phenomena(temperature_k, relative_humidity, pressure_pa):
 def assess_visibility(temp_c, dewpoint_c):
     """Assess visibility based on temperature-dewpoint spread"""
     spread = temp_c - dewpoint_c
-    
+
     if spread < 1.0:
         return 200  # Very poor
     elif spread < 2.0:
@@ -359,16 +359,16 @@ def assessaviation_weather(temperature_k, relative_humidity, wind_speed_mps, pre
     # Calculate aviation-relevant parameters
     dewpoint_k = mm.dewpoint_temperature(temperature_k, relative_humidity)
     wetbulb_k = mm.wet_bulb_temperature(temperature_k, pressure_pa, relative_humidity)
-    
+
     # Calculate density altitude (simplified)
     density_altitude = calculate_density_altitude(temperature_k, pressure_pa)
-    
+
     # Calculate icing potential
     icing_potential = assess_icing_potential(temperature_k, relative_humidity)
-    
+
     # Calculate turbulence potential
     turbulence_potential = assess_turbulence_potential(wind_speed_mps, temperature_k)
-    
+
     return {
         'density_altitude': density_altitude,
         'icing_potential': icing_potential,
@@ -383,17 +383,17 @@ def calculate_density_altitude(temperature_k, pressure_pa):
     # Simplified calculation
     standard_pressure = 101325  # Pa
     standard_temp = 288.15  # K
-    
+
     altitude_factor = (pressure_pa / standard_pressure) ** 0.234969
     density_altitude = (temperature_k / standard_temp - 1) / 0.0065 * 1000 + \
                       (standard_temp / temperature_k - 1) / 0.0065 * 1000 * (1 - altitude_factor)
-    
+
     return density_altitude
 
 def assess_icing_potential(temperature_k, relative_humidity):
     """Assess aircraft icing potential"""
     temp_c = mm.convert_temperature(temperature_k, 'K', 'C')
-    
+
     if temp_c < -10:
         return "Low"
     elif temp_c < 0 and relative_humidity > 0.8:
@@ -417,21 +417,21 @@ def assess_turbulence_potential(wind_speed_mps, temperature_k):
 def generate_aviation_recommendations(temp_k, rh, wind_speed, icing, turbulence):
     """Generate aviation recommendations"""
     recommendations = []
-    
+
     if icing == "High":
         recommendations.append("Severe icing potential - avoid flight")
     elif icing == "Moderate":
         recommendations.append("Icing possible - use anti-ice")
-    
+
     if turbulence == "High" or turbulence == "Severe":
         recommendations.append(f"Significant turbulence expected - {turbulence} level")
-    
+
     if wind_speed > 20:
         recommendations.append("Strong winds - consider crosswind limitations")
-    
+
     if not recommendations:
         recommendations.append("Conditions appear favorable for flight")
-    
+
     return recommendations
 
 # Example usage

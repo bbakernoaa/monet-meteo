@@ -34,7 +34,7 @@ lats = [40.7128, 51.5074, 35.6762]
 lons = [-74.0060, -0.1278, 139.6503]
 elevations = [10.0, 35.0, 40.0]
 
-cartesian_coords = [mm.latlon_to_cartesian(lat, lon, elev) 
+cartesian_coords = [mm.latlon_to_cartesian(lat, lon, elev)
                    for lat, lon, elev in zip(lats, lons, elevations)]
 ```
 
@@ -315,13 +315,13 @@ def calculate_airport_distances(airports):
     Calculate distances between airports
     """
     distance_matrix = np.zeros((len(airports), len(airports)))
-    
+
     for i, (name1, (lat1, lon1)) in enumerate(airports.items()):
         for j, (name2, (lat2, lon2)) in enumerate(airports.items()):
             if i != j:
                 distance = mm.calculate_distance(lat1, lon1, lat2, lon2)
                 distance_matrix[i, j] = distance / 1000  # Convert to km
-    
+
     return distance_matrix
 
 # Example usage
@@ -344,18 +344,18 @@ def analyze_wind_field_at_location(u_wind, v_wind, lat_grid, lon_grid):
     """
     # Find grid point closest to target location
     target_lat, target_lon = 40.7128, -74.0060  # New York
-    
+
     # Find nearest grid point
     lat_idx = np.argmin(np.abs(lat_grid - target_lat))
     lon_idx = np.argmin(np.abs(lon_grid - target_lon))
-    
+
     # Get wind components at that point
     u_at_point = u_wind[lat_idx, lon_idx]
     v_at_point = v_wind[lat_idx, lon_idx]
-    
+
     # Rotate to local coordinate system
     u_local, v_local = mm.rotate_wind_components(u_at_point, v_at_point, target_lat, target_lon)
-    
+
     return {
         'original_wind': (u_at_point, v_at_point),
         'local_wind': (u_local, v_local),
@@ -399,15 +399,15 @@ def analyze_grid_properties(lat_grid, lon_grid):
     Analyze grid cell properties
     """
     grid_properties = {}
-    
+
     # Calculate grid spacing
     lat_spacing = np.mean(np.diff(lat_grid[0, :]))
     lon_spacing = np.mean(np.diff(lon_grid[:, 0]))
-    
+
     dx, dy = mm.calculate_grid_spacing(
         np.mean(lat_grid), np.mean(lon_grid), lat_spacing
     )
-    
+
     # Calculate areas
     areas = []
     for i in range(lat_grid.shape[0] - 1):
@@ -415,14 +415,14 @@ def analyze_grid_properties(lat_grid, lon_grid):
             lat = lat_grid[i, j]
             area = mm.calculate_grid_area(lat, lon_spacing, lat_spacing)
             areas.append(area)
-    
+
     grid_properties.update({
         'grid_spacing_meters': {'dx': dx, 'dy': dy},
         'grid_spacing_degrees': {'dlat': lat_spacing, 'dlon': lon_spacing},
         'mean_area_sqm': np.mean(areas),
         'total_area_sqm': np.sum(areas)
     })
-    
+
     return grid_properties
 
 # Example usage
@@ -440,7 +440,7 @@ def plan_weather_route(start_coords, end_coords, weather_data, waypoints=None):
     # Calculate direct route distance and bearing
     direct_distance = mm.calculate_distance(*start_coords, *end_coords)
     direct_bearing = mm.bearing(*start_coords, *end_coords)
-    
+
     # Generate waypoints if not provided
     if waypoints is None:
         # Simple waypoint generation
@@ -452,7 +452,7 @@ def plan_weather_route(start_coords, end_coords, weather_data, waypoints=None):
             lat = start_coords[0] + fraction * (end_coords[0] - start_coords[0])
             lon = start_coords[1] + fraction * (end_coords[1] - start_coords[1])
             waypoints.append((lat, lon))
-    
+
     # Analyze weather along route
     route_analysis = {
         'start': start_coords,
@@ -462,15 +462,15 @@ def plan_weather_route(start_coords, end_coords, weather_data, waypoints=None):
         'direct_bearing': direct_bearing,
         'legs': []
     }
-    
+
     # Analyze each leg of the journey
     for i, (waypoint1, waypoint2) in enumerate(zip([start_coords] + waypoints, waypoints + [end_coords])):
         leg_distance = mm.calculate_distance(*waypoint1, *waypoint2)
         leg_bearing = mm.bearing(*waypoint1, *waypoint2)
-        
+
         # Get weather conditions along leg (simplified)
         weather_conditions = get_weather_along_leg(waypoint1, waypoint2, weather_data)
-        
+
         route_analysis['legs'].append({
             'start': waypoint1,
             'end': waypoint2,
@@ -478,7 +478,7 @@ def plan_weather_route(start_coords, end_coords, weather_data, waypoints=None):
             'bearing': leg_bearing,
             'weather': weather_conditions
         })
-    
+
     return route_analysis
 
 def get_weather_along_leg(start, end, weather_data):
@@ -505,13 +505,13 @@ def reanalyze_atmospheric_profile(observation_location, model_data):
     # Get model grid coordinates
     model_lats = model_data['latitude']
     model_lons = model_data['longitude']
-    
+
     # Find nearest model grid point
     obs_lat, obs_lon = observation_location
-    
+
     lat_idx = np.argmin(np.abs(model_lats - obs_lat))
     lon_idx = np.argmin(np.abs(model_lons - obs_lon))
-    
+
     # Extract model data at observation location
     model_profile = {
         'pressure': model_data['pressure'][:, lat_idx, lon_idx],
@@ -519,17 +519,17 @@ def reanalyze_atmospheric_profile(observation_location, model_data):
         'u_wind': model_data['u_wind'][:, lat_idx, lon_idx],
         'v_wind': model_data['v_wind'][:, lat_idx, lon_idx]
     }
-    
+
     # Convert pressure to altitude for easier comparison
     model_altitudes = mm.pressure_to_altitude(model_profile['pressure'])
-    
+
     # Rotate wind components to local coordinate system
     local_u, local_v = mm.rotate_wind_components(
-        model_profile['u_wind'], 
-        model_profile['v_wind'], 
+        model_profile['u_wind'],
+        model_profile['v_wind'],
         obs_lat, obs_lon
     )
-    
+
     return {
         'location': observation_location,
         'model_profile': model_profile,
@@ -551,32 +551,32 @@ def process_climate_grid(climate_data, output_resolution=0.5):
     # Get original grid
     original_lats = climate_data['latitude']
     original_lons = climate_data['longitude']
-    
+
     # Create output grid
     new_lats = np.arange(-90, 90 + output_resolution, output_resolution)
     new_lons = np.arange(-180, 180 + output_resolution, output_resolution)
-    
+
     # Calculate grid properties
     grid_spacing = mm.calculate_grid_spacing(
         np.mean(new_lats), np.mean(new_lons), output_resolution
     )
-    
+
     # Process each variable
     processed_data = {}
     for variable in ['temperature', 'precipitation', 'wind_speed']:
         if variable in climate_data:
             # Interpolate to new grid (simplified - in practice use proper interpolation)
             interpolated_data = interpolate_to_new_grid(
-                climate_data[variable], original_lats, original_lons, 
+                climate_data[variable], original_lats, original_lons,
                 new_lats, new_lons
             )
             processed_data[variable] = interpolated_data
-    
+
     # Calculate derived properties
     processed_data['grid_area'] = mm.calculate_grid_area(
         np.mean(new_lats), output_resolution, output_resolution
     )
-    
+
     return {
         'processed_data': processed_data,
         'grid_specification': {
