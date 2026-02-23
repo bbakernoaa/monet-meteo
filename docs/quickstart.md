@@ -187,7 +187,7 @@ specific_heat = 1004  # J/kg/K
 sensible_heat_flux = 150  # W/m²
 
 L = mm.monin_obukhov_length(
-    friction_velocity, temperature, air_density, 
+    friction_velocity, temperature, air_density,
     specific_heat, sensible_heat_flux
 )
 print(f"Monin-Obukhov length: {L:.2f} m")

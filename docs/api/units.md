@@ -279,28 +279,28 @@ def process_meteorological_data(data):
     Process meteorological data with unit conversions
     """
     processed = {}
-    
+
     # Convert pressure to consistent units
     processed['pressure_pa'] = mm.convert_pressure(
         data['pressure'], data['pressure_unit'], 'Pa'
     )
-    
+
     # Convert temperatures to Kelvin
     processed['temperature_k'] = mm.convert_temperature(
         data['temperature'], data['temperature_unit'], 'K'
     )
-    
+
     # Convert wind speeds to m/s
     processed['wind_speed_ms'] = mm.convert_wind_speed(
         data['wind_speed'], data['wind_speed_unit'], 'm/s'
     )
-    
+
     # Convert mixing ratios to consistent units
     if 'mixing_ratio' in data:
         processed['mixing_ratio_kgkg'] = mm.convert_mixing_ratio(
             data['mixing_ratio'], data['mixing_ratio_unit'], 'kg/kg'
         )
-    
+
     return processed
 
 # Example usage
@@ -328,21 +328,21 @@ def standardize_climate_units(dataset):
         dataset['pressure_pa'] = mm.convert_pressure(
             dataset['pressure'], dataset.attrs.get('pressure_unit', 'hPa'), 'Pa'
         )
-    
+
     # Convert all temperatures to Kelvin
     for temp_var in ['temperature', 'dewpoint', 'surface_temperature']:
         if temp_var in dataset:
             dataset[f'{temp_var}_k'] = mm.convert_temperature(
                 dataset[temp_var], dataset.attrs.get(f'{temp_var}_unit', 'C'), 'K'
             )
-    
+
     # Convert all wind speeds to m/s
     for wind_var in ['wind_speed', 'u_wind', 'v_wind']:
         if wind_var in dataset:
             dataset[f'{wind_var}_ms'] = mm.convert_wind_speed(
                 dataset[wind_var], dataset.attrs.get(f'{wind_var}_unit', 'm/s'), 'm/s'
             )
-    
+
     return dataset
 
 # Example usage
@@ -356,7 +356,7 @@ def prepare_model_input(observation_data, model_requirements):
     Convert observation data to model input units
     """
     model_input = {}
-    
+
     # Pressure conversion
     if 'pressure' in observation_data:
         model_input['pressure'] = mm.convert_pressure(
@@ -364,7 +364,7 @@ def prepare_model_input(observation_data, model_requirements):
             observation_data.get('pressure_unit', 'hPa'),
             model_requirements['pressure_unit']
         )
-    
+
     # Temperature conversion
     if 'temperature' in observation_data:
         model_input['temperature'] = mm.convert_temperature(
@@ -372,7 +372,7 @@ def prepare_model_input(observation_data, model_requirements):
             observation_data.get('temperature_unit', 'C'),
             model_requirements['temperature_unit']
         )
-    
+
     # Wind speed conversion
     if 'wind_speed' in observation_data:
         model_input['wind_speed'] = mm.convert_wind_speed(
@@ -380,7 +380,7 @@ def prepare_model_input(observation_data, model_requirements):
             observation_data.get('wind_speed_unit', 'm/s'),
             model_requirements['wind_speed_unit']
         )
-    
+
     return model_input
 
 # Example usage

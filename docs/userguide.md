@@ -221,41 +221,41 @@ def analyze_atmospheric_profile(pressure, temperature, vapor_pressure=None):
     """
     import monet_meteo as mm
     import numpy as np
-    
+
     # Convert to numpy arrays if needed
     pressure = np.asarray(pressure)
     temperature = np.asarray(temperature)
-    
+
     # Calculate basic thermodynamic properties
     potential_temp = mm.potential_temperature(pressure, temperature)
-    
+
     results = {
         'pressure': pressure,
         'temperature': temperature,
         'potential_temperature': potential_temp
     }
-    
+
     # Add moisture calculations if vapor pressure is provided
     if vapor_pressure is not None:
         vapor_pressure = np.asarray(vapor_pressure)
         mixing_ratio = mm.mixing_ratio(vapor_pressure, pressure)
-        relative_humidity = mm.relative_humidity(temperature, 
+        relative_humidity = mm.relative_humidity(temperature,
                                                mm.dewpoint_from_vapor_pressure(vapor_pressure))
-        
+
         results.update({
             'vapor_pressure': vapor_pressure,
             'mixing_ratio': mixing_ratio,
             'relative_humidity': relative_humidity
         })
-        
+
         # Calculate equivalent potential temperature
         results['equivalent_potential_temperature'] = mm.equivalent_potential_temperature(
             pressure, temperature, mixing_ratio
         )
-    
+
     # Convert pressure to altitude for easier interpretation
     results['altitude'] = mm.pressure_to_altitude(pressure)
-    
+
     return results
 
 # Example usage
@@ -274,21 +274,21 @@ def process_weather_data(weather_dict):
     Process raw weather data into standard format
     """
     import monet_meteo as mm
-    
+
     processed_data = {}
-    
+
     # Convert units
     if 'pressure' in weather_dict:
         processed_data['pressure_pa'] = mm.convert_pressure(
             weather_dict['pressure'], 'hPa', 'Pa'
         )
-    
+
     if 'temperature' in weather_dict:
         processed_data['temperature_k'] = mm.convert_temperature(
             weather_dict['temperature'], 'C', 'K'
         )
         processed_data['temperature_c'] = weather_dict['temperature']
-    
+
     if 'wind_speed' in weather_dict:
         processed_data['wind_speed_ms'] = mm.convert_wind_speed(
             weather_dict['wind_speed'], 'km/h', 'm/s'
@@ -296,7 +296,7 @@ def process_weather_data(weather_dict):
         processed_data['wind_speed_knots'] = mm.convert_wind_speed(
             weather_dict['wind_speed'], 'km/h', 'knots'
         )
-    
+
     # Calculate derived quantities
     if 'temperature_k' in processed_data and 'relative_humidity' in weather_dict:
         processed_data['heat_index'] = mm.heat_index(
@@ -305,7 +305,7 @@ def process_weather_data(weather_dict):
         processed_data['heat_index_c'] = mm.convert_temperature(
             processed_data['heat_index'], 'K', 'C'
         )
-    
+
     return processed_data
 
 # Example usage
@@ -329,18 +329,18 @@ def analyze_climate_trends(climate_data, time_axis='time'):
     import monet_meteo as mm
     import numpy as np
     import xarray as xr
-    
+
     # Ensure data is in xarray format for easier manipulation
     if not isinstance(climate_data, xr.Dataset):
         climate_data = xr.Dataset(climate_data)
-    
+
     # Calculate seasonal means
     climate_data_seasonal = climate_data.groupby('season').mean()
-    
+
     # Calculate climatological statistics
     climatological_mean = climate_data.mean(dim='time')
     climatological_std = climate_data.std(dim='time')
-    
+
     # Analyze temperature trends
     if 'temperature' in climate_data:
         # Calculate potential temperature for stability analysis
@@ -348,18 +348,18 @@ def analyze_climate_trends(climate_data, time_axis='time'):
         potential_temp = mm.potential_temperature(
             pressure_levels, climate_data['temperature']
         )
-        
+
         # Add to results
         climate_data['potential_temperature'] = (climate_data['temperature'].dims, potential_temp)
-    
+
     # Wind analysis
     if 'u_wind' in climate_data and 'v_wind' in climate_data:
         wind_speed = np.sqrt(climate_data['u_wind']**2 + climate_data['v_wind']**2)
         wind_direction = np.degrees(np.arctan2(-climate_data['u_wind'], -climate_data['v_wind'])) % 360
-        
+
         climate_data['wind_speed'] = (climate_data['u_wind'].dims, wind_speed)
         climate_data['wind_direction'] = (climate_data['u_wind'].dims, wind_direction)
-    
+
     return {
         'seasonal_means': climate_data_seasonal,
         'climatological_mean': climatological_mean,
@@ -379,7 +379,7 @@ def analyze_climate_trends(climate_data, time_axis='time'):
 def process_netcdf_pipeline(input_file, output_file, processing_steps):
     """
     Complete NetCDF data processing pipeline
-    
+
     Parameters:
     - input_file: Path to input NetCDF file
     - output_file: Path to output NetCDF file
@@ -387,26 +387,26 @@ def process_netcdf_pipeline(input_file, output_file, processing_steps):
     """
     import monet_meteo as mm
     import xarray as xr
-    
+
     # Step 1: Load data
     dataset = mm.load_netcdf_dataset(input_file)
-    
+
     # Step 2: Apply processing steps
     for step in processing_steps:
         dataset = step(dataset)
-    
+
     # Step 3: Validate and add metadata
     mm.validate_coordinate_system(dataset)
-    
+
     # Add processing history
     if 'history' not in dataset.attrs:
         dataset.attrs['history'] = 'Processed using monet-meteo'
     else:
         dataset.attrs['history'] += '; Processed using monet-meteo'
-    
+
     # Step 4: Save results
     mm.save_netcdf_dataset(dataset, output_file)
-    
+
     return dataset
 
 def unit_conversion_step(dataset):
@@ -415,7 +415,7 @@ def unit_conversion_step(dataset):
     if 'pressure' in dataset and dataset['pressure'].attrs.get('units') == 'hPa':
         dataset['pressure'] = mm.xr_convert_pressure(dataset['pressure'], 'hPa', 'Pa')
         dataset['pressure'].attrs['units'] = 'Pa'
-    
+
     # Convert temperature if needed
     if 'temperature' in dataset and dataset['temperature'].attrs.get('units') == 'K':
         dataset['temperature_c'] = mm.xr_convert_temperature(
@@ -426,7 +426,7 @@ def unit_conversion_step(dataset):
             'long_name': 'Air Temperature',
             'standard_name': 'air_temperature'
         }
-    
+
     return dataset
 
 def vertical_interpolation_step(dataset, target_levels):
@@ -436,7 +436,7 @@ def vertical_interpolation_step(dataset, target_levels):
         target_pressure = xr.DataArray(target_levels, dims=['pressure'])
     else:
         target_pressure = target_levels
-    
+
     # Interpolate all variables with pressure dimension
     for var_name in dataset.data_vars:
         if 'pressure' in dataset[var_name].dims and var_name != 'pressure':
@@ -446,7 +446,7 @@ def vertical_interpolation_step(dataset, target_levels):
                     dataset['u_wind'], dataset['v_wind'],
                     dataset['pressure'], target_pressure, method='log'
                 )
-                
+
                 dataset[f'{var_name}_interp'] = u_interp
                 dataset[f'{var_name}_interp'] = v_interp
             else:
@@ -455,7 +455,7 @@ def vertical_interpolation_step(dataset, target_levels):
                     dataset[var_name], 'pressure', target_pressure, method='log'
                 )
                 dataset[f'{var_name}_interp'] = interp_data
-    
+
     return dataset
 
 # Example usage
@@ -475,13 +475,13 @@ def real_time_weather_processing(observation_data, model_background, output_file
     """
     import monet_meteo as mm
     import xarray as xr
-    
+
     # Step 1: Load and prepare observation data
     obs_dataset = mm.load_netcdf_dataset(observation_data)
-    
+
     # Step 2: Process observations to model grid
     processed_obs = {}
-    
+
     for var_name in ['temperature', 'u_wind', 'v_wind', 'humidity']:
         if var_name in obs_dataset:
             # Interpolate observations to model grid
@@ -489,7 +489,7 @@ def real_time_weather_processing(observation_data, model_background, output_file
                 # Wind component interpolation
                 obs_var = obs_dataset[var_name]
                 model_var = model_background[var_name]
-                
+
                 # Interpolate using dask for efficiency
                 interp_var = mm.xr_interpolate_with_dask(
                     obs_var,
@@ -497,7 +497,7 @@ def real_time_weather_processing(observation_data, model_background, output_file
                     {'lon': model_background.lon, 'lat': model_background.lat},
                     method='linear'
                 )
-                
+
                 processed_obs[var_name] = interp_var
             else:
                 # Regular variable interpolation
@@ -509,15 +509,15 @@ def real_time_weather_processing(observation_data, model_background, output_file
                     method='linear'
                 )
                 processed_obs[var_name] = interp_var
-    
+
     # Step 3: Calculate analysis increments
     analysis_inc = {}
     for var_name in processed_obs:
         analysis_inc[var_name] = processed_obs[var_name] - model_background[var_name]
-    
+
     # Step 4: Create analysis dataset
     analysis_dataset = xr.Dataset(analysis_inc, coords=model_background.coords)
-    
+
     # Step 5: Add metadata
     analysis_dataset.attrs = {
         'title': 'Analysis Increments',
@@ -526,10 +526,10 @@ def real_time_weather_processing(observation_data, model_background, output_file
         'background_source': model_background.attrs.get('source', 'Unknown'),
         'observation_source': obs_dataset.attrs.get('source', 'Unknown')
     }
-    
+
     # Step 6: Save analysis
     mm.save_netcdf_dataset(analysis_dataset, output_file)
-    
+
     return analysis_dataset
 ```
 
@@ -543,16 +543,16 @@ def process_ensemble_models(model_files, common_grid):
     import monet_meteo as mm
     import xarray as xr
     import glob
-    
+
     ensemble_datasets = []
-    
+
     for model_file in model_files:
         # Load individual model
         model_dataset = mm.load_netcdf_dataset(model_file, chunks={'time': 1})
-        
+
         # Convert to common grid
         model_regridded = {}
-        
+
         for var_name in ['temperature', 'u_wind', 'v_wind', 'humidity']:
             if var_name in model_dataset:
                 # Interpolate to common grid
@@ -560,21 +560,21 @@ def process_ensemble_models(model_files, common_grid):
                     # Wind components
                     u_data = model_dataset['u_wind']
                     v_data = model_dataset['v_wind']
-                    
+
                     u_interp = mm.xr_interpolate_with_dask(
                         u_data,
                         {'lon': model_dataset.lon, 'lat': model_dataset.lat},
                         {'lon': common_grid['lon'], 'lat': common_grid['lat']},
                         method='cubic'
                     )
-                    
+
                     v_interp = mm.xr_interpolate_with_dask(
                         v_data,
                         {'lon': model_dataset.lon, 'lat': model_dataset.lat},
                         {'lon': common_grid['lon'], 'lat': common_grid['lat']},
                         method='cubic'
                     )
-                    
+
                     model_regridded['u_wind'] = u_interp
                     model_regridded['v_wind'] = v_interp
                 else:
@@ -586,18 +586,18 @@ def process_ensemble_models(model_files, common_grid):
                         method='cubic'
                     )
                     model_regridded[var_name] = interp_data
-        
+
         # Create regridded dataset
         regridded_dataset = xr.Dataset(model_regridded, coords=common_grid)
         regridded_dataset.attrs['source'] = model_dataset.attrs.get('source', 'Unknown')
-        
+
         ensemble_datasets.append(regridded_dataset)
-    
+
     # Calculate ensemble statistics
     stacked = xr.concat(ensemble_datasets, dim='model')
     ensemble_mean = stacked.mean(dim='model')
     ensemble_std = stacked.std(dim='model')
-    
+
     return {
         'mean': ensemble_mean,
         'std': ensemble_std,
@@ -618,7 +618,7 @@ def process_ensemble_models(model_files, common_grid):
    # Check for negative temperatures
    if np.any(temperature < 0):
        raise ValueError("Temperature cannot be negative in Kelvin")
-   
+
    # Check for negative pressures
    if np.any(pressure < 0):
        raise ValueError("Pressure cannot be negative")
@@ -645,7 +645,7 @@ def process_ensemble_models(model_files, common_grid):
    ```python
    # Good: Vectorized operation
    potential_temps = mm.potential_temperature(pressure_array, temperature_array)
-   
+
    # Bad: Loop operation
    potential_temps = []
    for p, t in zip(pressure_array, temperature_array):
@@ -664,7 +664,7 @@ def process_ensemble_models(model_files, common_grid):
 3. **Leverage Dask**: Use dask for parallel processing of large datasets
    ```python
    import dask.array as da
-   
+
    # Create dask array for parallel processing
    dask_array = da.from_array(large_array, chunks=(1000, 1000))
    result = da.map_blocks(process_function, dask_array)
@@ -679,7 +679,7 @@ def process_ensemble_models(model_files, common_grid):
        data = mm.load_netcdf_dataset(filepath)
        mm.validate_coordinate_system(data)
        return data
-   
+
    def calculate_derived_variables(data):
        """Calculate derived meteorological variables"""
        # Implementation
@@ -705,12 +705,12 @@ def process_ensemble_models(model_files, common_grid):
    def process_atmospheric_profile(pressure, temperature, moisture_data=None):
        """
        Process atmospheric profile and calculate derived properties.
-       
+
        Parameters:
        - pressure: Pressure levels in Pa
        - temperature: Temperature profile in K
        - moisture_data: Optional moisture information
-       
+
        Returns:
        - Dictionary with processed atmospheric data
        """
@@ -726,11 +726,11 @@ def process_ensemble_models(model_files, common_grid):
    ```python
    import psutil
    import os
-   
+
    def get_memory_usage():
        process = psutil.Process(os.getpid())
        return process.memory_info().rss / 1024**2  # MB
-   
+
    print(f"Memory usage: {get_memory_usage():.1f} MB")
    ```
 
@@ -758,10 +758,10 @@ def process_ensemble_models(model_files, common_grid):
    ```python
    import monet_meteo as mm
    import dask.array as da
-   
+
    # Create dask array
    dask_array = da.from_array(large_data, chunks=(1000, 1000))
-   
+
    # Parallel interpolation
    result = mm.xr_interpolate_with_dask(
        dask_array,
@@ -774,7 +774,7 @@ def process_ensemble_models(model_files, common_grid):
 2. **Multiprocessing**: Use multiprocessing for CPU-bound tasks
    ```python
    from multiprocessing import Pool
-   
+
    def parallel_processing(data_list):
        with Pool(processes=4) as pool:
            results = pool.map(process_single_profile, data_list)
@@ -793,7 +793,7 @@ def process_ensemble_models(model_files, common_grid):
 2. **Cache Results**: Cache intermediate results when possible
    ```python
    from functools import lru_cache
-   
+
    @lru_cache(maxsize=128)
    def calculate_potential_temperature(pressure, temperature):
        return mm.potential_temperature(pressure, temperature)
@@ -811,24 +811,24 @@ def plot_atmospheric_profile(pressure, temperature, title="Atmospheric Profile")
     """Plot atmospheric temperature profile"""
     # Convert pressure to altitude for plotting
     altitude = mm.pressure_to_altitude(pressure)
-    
+
     # Create plot
     fig, ax = plt.subplots(figsize=(10, 8))
-    
+
     # Plot temperature profile
     ax.plot(temperature - 273.15, altitude / 1000, 'b-', linewidth=2, label='Temperature')
-    
+
     # Plot potential temperature
     potential_temp = mm.potential_temperature(pressure, temperature)
     ax.plot(potential_temp - 273.15, altitude / 1000, 'r--', linewidth=2, label='Potential Temperature')
-    
+
     ax.invert_yaxis()
     ax.set_xlabel('Temperature (°C)')
     ax.set_ylabel('Altitude (km)')
     ax.set_title(title)
     ax.legend()
     ax.grid(True, alpha=0.3)
-    
+
     return fig, ax
 
 # Example usage
@@ -847,11 +847,11 @@ def pandas_weather_analysis(weather_dataframe):
     weather_dataframe['pressure_pa'] = weather_dataframe['pressure_hpa'].apply(
         lambda x: mm.convert_pressure(x, 'hPa', 'Pa')
     )
-    
+
     weather_dataframe['temperature_k'] = weather_dataframe['temperature_c'].apply(
         lambda x: mm.convert_temperature(x, 'C', 'K')
     )
-    
+
     # Calculate derived parameters
     weather_dataframe['heat_index'] = weather_dataframe.apply(
         lambda row: mm.heat_index(
@@ -860,13 +860,13 @@ def pandas_weather_analysis(weather_dataframe):
         ),
         axis=1
     )
-    
+
     # Calculate wind speed from components
     if 'u_wind_ms' in weather_dataframe.columns and 'v_wind_ms' in weather_dataframe.columns:
         weather_dataframe['wind_speed_ms'] = np.sqrt(
             weather_dataframe['u_wind_ms']**2 + weather_dataframe['v_wind_ms']**2
         )
-    
+
     return weather_dataframe
 
 # Example usage
@@ -885,13 +885,13 @@ def plot_weather_map(data, projection=ccrs.PlateCarree()):
     """Plot weather data on map using cartopy"""
     fig = plt.figure(figsize=(15, 10))
     ax = fig.add_subplot(1, 1, 1, projection=projection)
-    
+
     # Add map features
     ax.add_feature(cfeature.COASTLINE)
     ax.add_feature(cfeature.BORDERS)
     ax.add_feature(cfeature.OCEAN, color='lightblue')
     ax.add_feature(cfeature.LAND, color='lightgray')
-    
+
     # Plot data
     if 'temperature' in data:
         temp_plot = ax.contourf(
@@ -899,7 +899,7 @@ def plot_weather_map(data, projection=ccrs.PlateCarree()):
             levels=20, cmap='RdYlBu_r', transform=ccrs.PlateCarree()
         )
         plt.colorbar(temp_plot, ax=ax, label='Temperature (K)')
-    
+
     # Add wind vectors
     if 'u_wind' in data and 'v_wind' in data:
         skip = 5  # Skip some vectors for clarity
@@ -908,10 +908,10 @@ def plot_weather_map(data, projection=ccrs.PlateCarree()):
             data['u_wind'][::skip, ::skip], data['v_wind'][::skip, ::skip],
             transform=ccrs.PlateCarree(), scale=200, alpha=0.7
         )
-    
+
     ax.set_title('Weather Map')
     ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
-    
+
     return fig, ax
 
 # Example usage
@@ -953,7 +953,7 @@ def plot_weather_map(data, projection=ccrs.PlateCarree()):
    ```python
    import logging
    logging.basicConfig(level=logging.DEBUG)
-   
+
    # Add debug prints in functions
    logger = logging.getLogger(__name__)
    logger.debug(f"Processing data with shape: {data.shape}")
@@ -972,7 +972,7 @@ def plot_weather_map(data, projection=ccrs.PlateCarree()):
    test_pressure = 101325  # Pa
    test_temperature = 288.15  # K
    expected_potential_temp = 288.15  # K at 1000 hPa
-   
+
    calculated_potential_temp = mm.potential_temperature(test_pressure, test_temperature)
    assert abs(calculated_potential_temp - expected_potential_temp) < 0.01
    ```
@@ -982,23 +982,23 @@ def plot_weather_map(data, projection=ccrs.PlateCarree()):
 1. **Timing Functions**: Measure execution time
    ```python
    import time
-   
+
    start_time = time.time()
    result = complex_calculation(data)
    end_time = time.time()
-   
+
    print(f"Calculation completed in {end_time - start_time:.2f} seconds")
    ```
 
 2. **Memory Profiling**: Profile memory usage
    ```python
    import tracemalloc
-   
+
    tracemalloc.start()
    result = memory_intensive_operation(data)
    current, peak = tracemalloc.get_traced_memory()
    tracemalloc.stop()
-   
+
    print(f"Memory usage: {current / 1024**2:.1f} MB, Peak: {peak / 1024**2:.1f} MB")
    ```
 

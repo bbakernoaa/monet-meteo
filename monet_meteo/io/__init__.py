@@ -8,18 +8,12 @@ with xarray integration.
 # Import xarray integration functions
 try:
     from .xarray_integration import (
-        xr_convert_pressure,
-        xr_convert_temperature,
-        xr_pressure_to_altitude,
-        xr_altitude_to_pressure,
-        xr_interpolate_vertical,
-        xr_interpolate_temperature_pressure,
-        xr_interpolate_wind_components,
-        xr_calculate_distance,
-        xr_convert_vertical_coord,
-        xr_interpolate_with_dask,
-        add_coordinate_metadata,
-        validate_coordinate_system
+        xr_convert_pressure as xr_convert_pressure,  # noqa: F401
+        xr_convert_temperature as xr_convert_temperature,  # noqa: F401
+        xr_calculate_distance as xr_calculate_distance,  # noqa: F401
+        xr_convert_vertical_coord as xr_convert_vertical_coord,  # noqa: F401
+        add_coordinate_metadata as add_coordinate_metadata,  # noqa: F401
+        validate_coordinate_system as validate_coordinate_system,  # noqa: F401
     )
 except ImportError:
     # If xarray_integration is not available, skip importing

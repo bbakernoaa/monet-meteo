@@ -32,7 +32,7 @@ This document provides instructions for publishing the monet-meteo package to Py
    ```bash
    python -m build
    ```
-   
+
    This creates both source distribution (`.tar.gz`) and wheel (`.whl`) files in the `dist/` directory.
 
 3. Verify the built package:

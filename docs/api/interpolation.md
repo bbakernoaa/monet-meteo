@@ -271,7 +271,7 @@ new_lon = np.linspace(-180, 180, 721)
 
 # Interpolate
 interpolated = mm.interpolate_with_dask(
-    temp_data, 
+    temp_data,
     {'pressure': pressure, 'lat': lat, 'lon': lon},
     {'pressure': new_pressure, 'lat': new_lat, 'lon': new_lon},
     method='linear'
@@ -319,21 +319,21 @@ def interpolate_to_standard_levels(pressure_data, temperature_data, u_wind_data,
     Interpolate all variables to standard pressure levels
     """
     standard_levels = np.array([1000, 850, 700, 500, 300, 200, 100]) * 100
-    
+
     # Interpolate temperature
     temp_interp = mm.interpolate_temperature_pressure(
         temperature_data, pressure_data, standard_levels
     )
-    
+
     # Interpolate wind components
     u_interp, v_interp = mm.interpolate_wind_components(
         u_wind_data, v_wind_data, pressure_data, standard_levels, method='log'
     )
-    
+
     # Calculate wind speed and direction
     wind_speed = np.sqrt(u_interp**2 + v_interp**2)
     wind_direction = np.degrees(np.arctan2(-u_interp, -v_interp)) % 360
-    
+
     return {
         'pressure_levels': standard_levels,
         'temperature': temp_interp,
@@ -356,7 +356,7 @@ def regrid_data_to_higher_resolution(old_data, old_lons, old_lats, factor=2):
     # Create higher resolution grid
     new_lons = np.linspace(old_lons.min(), old_lons.max(), len(old_lons) * factor)
     new_lats = np.linspace(old_lats.min(), old_lats.max(), len(old_lats) * factor)
-    
+
     # Interpolate each time step
     regridded_data = []
     for time_step in old_data:
@@ -364,7 +364,7 @@ def regrid_data_to_higher_resolution(old_data, old_lons, old_lats, factor=2):
             time_step, old_lons, old_lats, new_lons, new_lats, method='cubic'
         )
         regridded_data.append(regridded)
-    
+
     return np.array(regridded_data), new_lons, new_lats
 
 # Example usage
@@ -380,10 +380,10 @@ def interpolate_3d_atmospheric_data(data_3d, old_grid, new_grid):
     # Extract coordinates
     old_x, old_y, old_z = old_grid['x'], old_grid['y'], old_grid['z']
     new_x, new_y, new_z = new_grid['x'], new_grid['y'], new_grid['z']
-    
+
     # Interpolate each variable
     interpolated_data = {}
-    
+
     for var_name, var_data in data_3d.items():
         if var_data.ndim == 3:
             interp_var = mm.interpolate_3d(
@@ -396,7 +396,7 @@ def interpolate_3d_atmospheric_data(data_3d, old_grid, new_grid):
                 var_data, old_x, old_y, new_x, new_y, method='cubic'
             )
             interpolated_data[var_name] = interp_var
-    
+
     return interpolated_data
 
 # Example usage
@@ -411,15 +411,15 @@ def process_large_dataset_with_dask(dask_data, chunk_size=(1, 90, 180)):
     """
     # Set up dask chunks
     dask_data = dask_data.chunk(chunk_size)
-    
+
     # Define new coordinates
     new_pressure = np.array([1000, 850, 700, 500, 300, 200]) * 100
     new_lat = np.linspace(-90, 90, 361)
     new_lon = np.linspace(-180, 180, 721)
-    
+
     # Interpolate each variable
     results = {}
-    
+
     for var_name, var_array in dask_data.data_vars.items():
         if 'pressure' in var_array.dims:
             # Vertical interpolation needed
@@ -433,12 +433,12 @@ def process_large_dataset_with_dask(dask_data, chunk_size=(1, 90, 180)):
                 'lat': new_lat,
                 'lon': new_lon
             }
-            
+
             interpolated = mm.interpolate_with_dask(
                 var_array, coords, new_coords, method='linear'
             )
             results[var_name] = interpolated
-    
+
     return results
 
 # Example usage
@@ -457,12 +457,12 @@ def post_process_model_output(model_data, target_grid):
     model_pressure = model_data['pressure'].values
     model_lats = model_data['latitude'].values
     model_lons = model_data['longitude'].values
-    
+
     # Interpolate to standard pressure levels
     standard_levels = np.array([1000, 850, 700, 500, 300, 200, 100]) * 100
-    
+
     post_processed = {}
-    
+
     # Process each variable
     for var_name in ['temperature', 'u_wind', 'v_wind', 'relative_humidity']:
         if var_name in model_data:
@@ -470,11 +470,11 @@ def post_process_model_output(model_data, target_grid):
             if var_name in ['u_wind', 'v_wind']:
                 u_data = model_data['u_wind'].values
                 v_data = model_data['v_wind'].values
-                
+
                 u_interp, v_interp = mm.interpolate_wind_components(
                     u_data, v_data, model_pressure, standard_levels, method='log'
                 )
-                
+
                 post_processed[f'{var_name}_interpolated'] = {
                     'u': u_interp,
                     'v': v_interp,
@@ -487,22 +487,22 @@ def post_process_model_output(model_data, target_grid):
                 interp_data = mm.pressure_level_interpolation(
                     data, model_pressure, standard_levels, method='log'
                 )
-                
+
                 post_processed[var_name] = {
                     'data': interp_data,
                     'pressure_levels': standard_levels,
                     'lats': model_lats,
                     'lons': model_lons
                 }
-    
+
     # Calculate derived quantities
     if 'u_wind_interpolated' in post_processed and 'v_wind_interpolated' in post_processed:
         u = post_processed['u_wind_interpolated']['u']
         v = post_processed['v_wind_interpolated']['v']
-        
+
         post_processed['wind_speed'] = np.sqrt(u**2 + v**2)
         post_processed['wind_direction'] = np.degrees(np.arctan2(-u, -v)) % 360
-    
+
     return post_processed
 
 # Example usage
@@ -516,17 +516,17 @@ def interpolate_ensemble_models(ensemble_data, common_grid):
     Interpolate multiple model outputs to common grid for ensemble analysis
     """
     interpolated_ensemble = []
-    
+
     for model_name, model_data in ensemble_data.items():
         # Interpolate this model to common grid
         model_interp = {}
-        
+
         for var_name, var_data in model_data.items():
             # Handle different coordinate systems
             if var_name in ['u_wind', 'v_wind']:
                 # Wind component interpolation
                 u_interp, v_interp = mm.interpolate_wind_components(
-                    var_data['u'], var_data['v'], 
+                    var_data['u'], var_data['v'],
                     var_data['pressure'], common_grid['pressure'],
                     method='log'
                 )
@@ -537,31 +537,31 @@ def interpolate_ensemble_models(ensemble_data, common_grid):
             else:
                 # Regular variable interpolation
                 interp_data = mm.pressure_level_interpolation(
-                    var_data['data'], var_data['pressure'], 
+                    var_data['data'], var_data['pressure'],
                     common_grid['pressure'], method='log'
                 )
                 model_interp[var_name] = {'data': interp_data}
-        
+
         interpolated_ensemble.append({
             'model_name': model_name,
             'data': model_interp
         })
-    
+
     return interpolated_ensemble
 
 def calculate_ensemble_statistics(interpolated_ensemble):
     """Calculate ensemble mean and spread"""
     ensemble_mean = {}
     ensemble_spread = {}
-    
+
     # Collect all model data
     all_models = {model['model_name']: model['data'] for model in interpolated_ensemble}
-    
+
     # Calculate statistics for each variable
     for var_name in all_models[list(all_models.keys())[0]].keys():
         ensemble_mean[var_name] = []
         ensemble_spread[var_name] = []
-        
+
         for level_idx in range(common_grid['pressure'].shape[0]):
             level_data = []
             for model_data in all_models.values():
@@ -569,14 +569,14 @@ def calculate_ensemble_statistics(interpolated_ensemble):
                     level_data.append(model_data[var_name]['u'][level_idx])
                 else:
                     level_data.append(model_data[var_name]['data'][level_idx])
-            
+
             level_data = np.array(level_data)
             ensemble_mean[var_name].append(np.mean(level_data))
             ensemble_spread[var_name].append(np.std(level_data))
-        
+
         ensemble_mean[var_name] = np.array(ensemble_mean[var_name])
         ensemble_spread[var_name] = np.array(ensemble_spread[var_name])
-    
+
     return ensemble_mean, ensemble_spread
 
 # Example usage
@@ -595,10 +595,10 @@ def real_time_interpolation(observation_data, model_background, analysis_time):
     obs_lons = observation_data['longitude']
     obs_values = observation_data['values']
     obs_types = observation_data['types']  # 'temperature', 'wind_u', 'wind_v', etc.
-    
+
     # Extract model background at observation locations
     model_background_interp = {}
-    
+
     for obs_type in set(obs_types):
         if obs_type == 'temperature':
             # Interpolate model temperature to observation locations
@@ -619,20 +619,20 @@ def real_time_interpolation(observation_data, model_background, analysis_time):
                 model_background['longitude'], model_background['latitude'],
                 obs_lons, obs_lats, method='linear'
             )
-            
+
             if obs_type == 'wind_u':
                 model_values = model_u
             else:
                 model_values = model_v
-        
+
         model_background_interp[obs_type] = model_values
-    
+
     # Calculate innovation (observation - background)
     innovations = {}
     for obs_type, obs_vals in zip(obs_types, obs_values):
         background_vals = model_background_interp[obs_type]
         innovations[obs_type] = obs_vals - background_vals
-    
+
     return {
         'observation_data': observation_data,
         'model_background': model_background_interp,
@@ -707,7 +707,7 @@ For large datasets, use chunked processing:
 def process_large_interpolation_dataset(data_chunk, interpolation_config):
     """Process a chunk of data with interpolation"""
     result = {}
-    
+
     for var_name, var_data in data_chunk.items():
         if var_data.ndim == 3:
             # 3D interpolation
@@ -731,9 +731,9 @@ def process_large_interpolation_dataset(data_chunk, interpolation_config):
                 interpolation_config['new_y'],
                 method='cubic'
             )
-        
+
         result[var_name] = interp_data
-    
+
     return result
 ```
 

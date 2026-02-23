@@ -181,19 +181,19 @@ def create_standard_atmosphere_profile():
     """Create a standard atmosphere profile"""
     # Define pressure levels
     pressure_levels = np.logspace(2, 3.5, 20)  # 100 to 3162 hPa
-    
+
     # Standard atmosphere temperature profile
     temperature_levels = 288.15 - 0.0065 * (pressure_levels - 101325) / 9.80665 * 287.04
-    
+
     # Create profile
     profile = mm.AtmosphericProfile(
         pressure=pressure_levels * 100,  # Convert to Pa
         temperature=temperature_levels
     )
-    
+
     # Calculate derived properties
     profile.calculate_thermodynamic_properties()
-    
+
     return profile
 
 # Example usage
@@ -211,17 +211,17 @@ def analyze_wind_shear(wind_profile):
     # Calculate wind speed and direction
     wind_speed = wind_profile.wind_speed()
     wind_direction = wind_profile.wind_direction()
-    
+
     # Calculate wind shear (speed difference between levels)
     wind_shear = np.diff(wind_speed)
-    
+
     # Calculate directional shear (direction difference between levels)
     directional_shear = np.diff(wind_direction)
-    
+
     # Normalize directional shear to [-180, 180]
     directional_shear = np.where(directional_shear > 180, directional_shear - 360, directional_shear)
     directional_shear = np.where(directional_shear < -180, directional_shear + 360, directional_shear)
-    
+
     return {
         'wind_speed': wind_speed,
         'wind_direction': wind_direction,
@@ -251,11 +251,11 @@ def analyze_atmospheric_stability(thermo_profile):
     pressure_diff = np.diff(thermo_profile.pressure)
     temp_diff = np.diff(thermo_profile.temperature)
     lapse_rate = -temp_diff / pressure_diff * 9.80665 / 287.04
-    
+
     # Classify stability
     dry_adiabatic_lapse_rate = 9.8  # K/km
     moist_adiabatic_lapse_rate = 6.5  # K/km
-    
+
     stability = []
     for lr in lapse_rate:
         if lr > dry_adiabatic_lapse_rate:
@@ -264,7 +264,7 @@ def analyze_atmospheric_stability(thermo_profile):
             stability.append("Conditionally unstable")
         else:
             stability.append("Stable")
-    
+
     return {
         'lapse_rate': lapse_rate,
         'stability_classification': stability,
@@ -289,20 +289,20 @@ def compare_atmospheric_profiles(profile1, profile2):
     """
     # Find common pressure levels
     common_pressure = np.intersect1d(profile1.pressure, profile2.pressure)
-    
+
     # Interpolate profile1 to common levels
     from scipy import interpolate
-    interp_temp1 = interpolate.interp1d(profile1.pressure, profile1.temperature, 
+    interp_temp1 = interpolate.interp1d(profile1.pressure, profile1.temperature,
                                        bounds_error=False, fill_value='extrapolate')
-    interp_temp2 = interpolate.interp1d(profile2.pressure, profile2.temperature, 
+    interp_temp2 = interpolate.interp1d(profile2.pressure, profile2.temperature,
                                        bounds_error=False, fill_value='extrapolate')
-    
+
     temp1_interp = interp_temp1(common_pressure)
     temp2_interp = interp_temp2(common_pressure)
-    
+
     # Calculate differences
     temp_difference = temp1_interp - temp2_interp
-    
+
     return {
         'common_pressure': common_pressure,
         'profile1_temperature': temp1_interp,
@@ -335,7 +335,7 @@ def process_radiosonde_data(pressure, temperature, dewpoint, u_wind, v_wind, hei
     """
     # Convert to appropriate units if needed
     pressure_pa = pressure * 100 if pressure.max() < 10000 else pressure
-    
+
     # Create comprehensive atmospheric profile
     profile = mm.AtmosphericProfile(
         pressure=pressure_pa,
@@ -344,24 +344,24 @@ def process_radiosonde_data(pressure, temperature, dewpoint, u_wind, v_wind, hei
         v_wind=v_wind,
         height=height if height is not None else pressure_pa / 9.80665 * 287.04  # Approximate height
     )
-    
+
     # Calculate derived properties
     profile.calculate_thermodynamic_properties()
-    
+
     # Create wind profile
     wind_profile = mm.WindProfile(
         height=profile.height,
         u_wind=u_wind,
         v_wind=v_wind
     )
-    
+
     # Create thermodynamic profile
     thermo_profile = mm.TermodynamicProfile(
         pressure=pressure_pa,
         temperature=temperature,
         dewpoint=dewpoint
     )
-    
+
     return {
         'atmospheric_profile': profile,
         'wind_profile': wind_profile,
@@ -375,13 +375,13 @@ def calculate_derived_parameters(thermo_profile):
     surface_temp = thermo_profile.temperature[0]
     surface_dewpoint = thermo_profile.dewpoint[0]
     lcl_height = mm.lifting_condensation_level(surface_temp, surface_dewpoint)
-    
+
     # Calculate heat index (simplified)
     temp_c = mm.convert_temperature(surface_temp, 'K', 'C')
     rh = 0.7  # Assume 70% relative humidity
     heat_index = mm.heat_index(surface_temp, rh)
     heat_index_c = mm.convert_temperature(heat_index, 'K', 'C')
-    
+
     return mm.DerivedParameters(
         lcl_height=np.array([lcl_height]),
         heat_index=np.array([heat_index_c])
@@ -404,7 +404,7 @@ def validate_model_output(model_data, obs_data, tolerance=0.1):
         u_wind=model_data.get('u_wind'),
         v_wind=model_data.get('v_wind')
     )
-    
+
     # Create profiles from observation data
     obs_profile = mm.AtmosphericProfile(
         pressure=obs_data['pressure'],
@@ -412,21 +412,21 @@ def validate_model_output(model_data, obs_data, tolerance=0.1):
         u_wind=obs_data.get('u_wind'),
         v_wind=obs_data.get('v_wind')
     )
-    
+
     # Interpolate to common levels for comparison
     comparison = compare_atmospheric_profiles(model_profile, obs_profile)
-    
+
     # Calculate statistics
     temp_rmse = np.sqrt(np.mean(comparison['temperature_difference']**2))
     temp_bias = np.mean(comparison['temperature_difference'])
-    
+
     validation_results = {
         'temperature_rmse': temp_rmse,
         'temperature_bias': temp_bias,
         'is_within_tolerance': temp_rmse <= tolerance,
         'comparison_data': comparison
     }
-    
+
     return validation_results
 
 # Example usage
@@ -441,7 +441,7 @@ def analyze_climate_profile_climatology(profile_data, time_dim='time'):
     """
     # Calculate seasonal means
     seasonal_profiles = {}
-    
+
     for season in ['DJF', 'MAM', 'JJA', 'SON']:
         season_mask = profile_data['season'] == season
         if np.any(season_mask):
@@ -452,7 +452,7 @@ def analyze_climate_profile_climatology(profile_data, time_dim='time'):
                 v_wind=np.mean(profile_data['v_wind'][season_mask], axis=0)
             )
             seasonal_profiles[season] = seasonal_profile
-    
+
     # Calculate long-term mean profile
     long_term_profile = mm.AtmosphericProfile(
         pressure=np.mean(profile_data['pressure'], axis=0),
@@ -460,7 +460,7 @@ def analyze_climate_profile_climatology(profile_data, time_dim='time'):
         u_wind=np.mean(profile_data['u_wind'], axis=0),
         v_wind=np.mean(profile_data['v_wind'], axis=0)
     )
-    
+
     return {
         'long_term_mean': long_term_profile,
         'seasonal_means': seasonal_profiles,
@@ -470,13 +470,13 @@ def analyze_climate_profile_climatology(profile_data, time_dim='time'):
 def calculate_climatological_statistics(profile_data):
     """Calculate climatological statistics"""
     stats = {}
-    
+
     for var in ['temperature', 'u_wind', 'v_wind']:
         stats[f'{var}_mean'] = np.mean(profile_data[var], axis=0)
         stats[f'{var}_std'] = np.std(profile_data[var], axis=0)
         stats[f'{var}_max'] = np.max(profile_data[var], axis=0)
         stats[f'{var}_min'] = np.min(profile_data[var], axis=0)
-    
+
     return stats
 
 # Example usage
@@ -528,10 +528,10 @@ For large datasets, consider processing profiles individually:
 def process_large_profile_dataset(profile_data, chunk_size=1000):
     """Process large dataset of profiles in chunks"""
     processed_profiles = []
-    
+
     for i in range(0, len(profile_data), chunk_size):
         chunk = profile_data[i:i+chunk_size]
-        
+
         # Process chunk
         chunk_profiles = []
         for j in range(len(chunk)):
@@ -543,9 +543,9 @@ def process_large_profile_dataset(profile_data, chunk_size=1000):
             )
             profile.calculate_thermodynamic_properties()
             chunk_profiles.append(profile)
-        
+
         processed_profiles.extend(chunk_profiles)
-    
+
     return processed_profiles
 ```
 
@@ -558,13 +558,13 @@ def vectorized_profile_analysis(profiles):
     # Stack profiles for vectorized operations
     all_temps = np.stack([p.temperature for p in profiles])
     all_pressures = np.stack([p.pressure for p in profiles])
-    
+
     # Vectorized calculation of potential temperature
     potential_temps = []
     for i in range(len(profiles)):
         theta = mm.potential_temperature(all_pressures[i], all_temps[i])
         potential_temps.append(theta)
-    
+
     return potential_temps
 ```
 
@@ -594,7 +594,7 @@ def export_profile_to_json(profile, filename):
         'v_wind': profile.v_wind.tolist() if profile.v_wind is not None else None,
         'mixing_ratio': profile.mixing_ratio.tolist() if profile.mixing_ratio is not None else None
     }
-    
+
     with open(filename, 'w') as f:
         json.dump(data, f, indent=2)
 

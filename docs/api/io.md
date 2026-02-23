@@ -223,7 +223,7 @@ mm.xr_interpolate_with_dask(dataarray, old_coords, new_coords, method='linear', 
 ```python
 # Interpolate large dataset with dask
 interpolated = mm.xr_interpolate_with_dask(
-    temperature_data, 
+    temperature_data,
     {'lon': old_lons, 'lat': old_lats},
     {'lon': new_lons, 'lat': new_lats},
     method='cubic'
@@ -378,26 +378,26 @@ def process_meteorological_data(filepath):
     """
     # Load dataset with appropriate chunking
     dataset = mm.load_netcdf_dataset(
-        filepath, 
+        filepath,
         chunks={'time': 10, 'lat': 90, 'lon': 180}
     )
-    
+
     # Convert pressure units if needed
     if 'pressure' in dataset and dataset['pressure'].attrs.get('units') == 'hPa':
         dataset['pressure'] = mm.xr_convert_pressure(dataset['pressure'], 'hPa', 'Pa')
         dataset['pressure'].attrs['units'] = 'Pa'
-    
+
     # Convert temperature units if needed
     if 'temperature' in dataset and dataset['temperature'].attrs.get('units') == 'K':
         dataset['temperature_c'] = mm.xr_convert_temperature(
             dataset['temperature'], 'K', 'C'
         )
         dataset['temperature_c'].attrs = {
-            'units': 'C', 
+            'units': 'C',
             'long_name': 'Air Temperature',
             'standard_name': 'air_temperature'
         }
-    
+
     # Add metadata to coordinates
     dataset = mm.add_coordinate_metadata(
         dataset, 'lat', 'Latitude', 'degrees_north', 'latitude'
@@ -405,7 +405,7 @@ def process_meteorological_data(filepath):
     dataset = mm.add_coordinate_metadata(
         dataset, 'lon', 'Longitude', 'degrees_east', 'longitude'
     )
-    
+
     return dataset
 
 # Example usage
@@ -420,7 +420,7 @@ def vertical_coordinate_conversion(dataset, target_pressure_levels):
     """
     # Validate input coordinate system
     mm.validate_coordinate_system(dataset)
-    
+
     # Convert pressure coordinate if needed
     if 'pressure' not in dataset.dims and 'level' in dataset.dims:
         # Assume level is actually pressure
@@ -430,26 +430,26 @@ def vertical_coordinate_conversion(dataset, target_pressure_levels):
             'long_name': 'Pressure',
             'standard_name': 'air_pressure'
         }
-    
+
     # Interpolate all variables to standard pressure levels
     processed_data = {}
-    
+
     for var_name, var_data in dataset.data_vars.items():
         if 'pressure' in var_data.dims:
             # Skip pressure coordinate itself
             if var_name == 'pressure':
                 continue
-            
+
             # Interpolate to pressure levels
             if var_name in ['u_wind', 'v_wind']:
                 # Handle wind components
                 u_data = dataset['u_wind']
                 v_data = dataset['v_wind']
-                
+
                 u_interp, v_interp = mm.xr_interpolate_wind_components(
                     u_data, v_data, dataset['pressure'], target_pressure_levels, method='log'
                 )
-                
+
                 processed_data['u_wind'] = u_interp
                 processed_data['v_wind'] = v_interp
             else:
@@ -461,11 +461,11 @@ def vertical_coordinate_conversion(dataset, target_pressure_levels):
         else:
             # 2D variables (surface fields) - no vertical interpolation needed
             processed_data[var_name] = var_data
-    
+
     # Create new dataset
     new_coords = {**dataset.coords, 'pressure': target_pressure_levels}
     new_dataset = xr.Dataset(processed_data, coords=new_coords)
-    
+
     return new_dataset
 
 # Example usage
@@ -481,79 +481,79 @@ def process_large_climate_dataset(filepath, output_filepath, chunk_size='auto'):
     """
     # Load dataset with automatic chunking
     dataset = mm.load_netcdf_dataset(
-        filepath, 
+        filepath,
         chunks=chunk_size
     )
-    
+
     # Define target coordinates
     target_coords = {
         'lon': np.linspace(-180, 180, 721),
         'lat': np.linspace(-90, 90, 361),
         'pressure': np.array([1000, 850, 700, 500, 300, 200]) * 100
     }
-    
+
     # Process each variable
     processed_vars = {}
-    
+
     for var_name, var_data in dataset.data_vars.items():
         if var_name in ['u_wind', 'v_wind']:
             # Interpolate wind components
             u_data = dataset['u_wind']
             v_data = dataset['v_wind']
-            
+
             # Horizontal interpolation
             u_interp = mm.xr_interpolate_with_dask(
-                u_data, 
+                u_data,
                 {'lon': dataset.lon, 'lat': dataset.lat},
                 {'lon': target_coords['lon'], 'lat': target_coords['lat']},
                 method='cubic'
             )
-            
+
             v_interp = mm.xr_interpolate_with_dask(
-                v_data, 
+                v_data,
                 {'lon': dataset.lon, 'lat': dataset.lat},
                 {'lon': target_coords['lon'], 'lat': target_coords['lat']},
                 method='cubic'
             )
-            
+
             # Vertical interpolation
             u_final, v_final = mm.xr_interpolate_wind_components(
-                u_interp, v_interp, 
-                dataset['pressure'], target_coords['pressure'], 
+                u_interp, v_interp,
+                dataset['pressure'], target_coords['pressure'],
                 method='log'
             )
-            
+
             processed_vars['u_wind'] = u_final
             processed_vars['v_wind'] = v_final
-            
+
         elif var_name in dataset.data_vars and var_name != 'pressure':
             # Regular variable processing
             # Horizontal interpolation
             interp_data = mm.xr_interpolate_with_dask(
-                var_data, 
+                var_data,
                 {'lon': dataset.lon, 'lat': dataset.lat},
                 {'lon': target_coords['lon'], 'lat': target_coords['lat']},
                 method='cubic'
             )
-            
+
             # Vertical interpolation if needed
             if 'pressure' in interp_data.dims:
                 interp_data = mm.xr_interpolate_vertical(
                     interp_data, 'pressure', target_coords['pressure'], method='log'
                 )
-            
+
             processed_vars[var_name] = interp_data
-    
+
     # Create new dataset
     new_dataset = xr.Dataset(processed_vars, coords=target_coords)
-    
+
     # Add metadata
     new_dataset.attrs = dataset.attrs
     new_dataset.attrs['processing_history'] = 'Regridded and interpolated using monet_meteo'
-    
+
     # Save processed dataset
     mm.save_netcdf_dataset(new_dataset, output_filepath)
-    
+
     return new_dataset
 
 # Example usage
@@ -568,13 +568,13 @@ def real_time_processing_pipeline(observation_file, model_background_file, outpu
     """
     # Load real-time observations
     obs_dataset = mm.load_netcdf_dataset(observation_file)
-    
+
     # Load model background
     model_dataset = mm.load_netcdf_dataset(model_background_file)
-    
+
     # Process observations to model grid
     processed_obs = {}
-    
+
     for var_name in ['temperature', 'u_wind', 'v_wind', 'humidity']:
         if var_name in obs_dataset:
             # Interpolate observations to model grid
@@ -582,10 +582,10 @@ def real_time_processing_pipeline(observation_file, model_background_file, outpu
                 # Wind component interpolation
                 obs_u = obs_dataset[f'{var_name}_component_u'] if var_name == 'wind' else obs_dataset['u_wind']
                 obs_v = obs_dataset[f'{var_name}_component_v'] if var_name == 'wind' else obs_dataset['v_wind']
-                
+
                 model_u = model_dataset['u_wind']
                 model_v = model_dataset['v_wind']
-                
+
                 # Interpolate to model grid
                 u_interp = mm.xr_interpolate_with_dask(
                     obs_u,
@@ -593,14 +593,14 @@ def real_time_processing_pipeline(observation_file, model_background_file, outpu
                     {'lon': model_dataset.lon, 'lat': model_dataset.lat},
                     method='linear'
                 )
-                
+
                 v_interp = mm.xr_interpolate_with_dask(
                     obs_v,
                     {'lon': obs_dataset.lon, 'lat': obs_dataset.lat},
                     {'lon': model_dataset.lon, 'lat': model_dataset.lat},
                     method='linear'
                 )
-                
+
                 processed_obs['u_wind'] = u_interp
                 processed_obs['v_wind'] = v_interp
             else:
@@ -613,17 +613,17 @@ def real_time_processing_pipeline(observation_file, model_background_file, outpu
                     method='linear'
                 )
                 processed_obs[var_name] = interp_var
-    
+
     # Create analysis increment (observation - background)
     analysis_inc = {}
-    
+
     for var_name in processed_obs:
         background = model_dataset[var_name]
         analysis_inc[var_name] = processed_obs[var_name] - background
-    
+
     # Create analysis dataset
     analysis_dataset = xr.Dataset(analysis_inc, coords=model_dataset.coords)
-    
+
     # Add metadata
     analysis_dataset.attrs = {
         'title': 'Analysis Increments',
@@ -632,10 +632,10 @@ def real_time_processing_pipeline(observation_file, model_background_file, outpu
         'background_source': model_dataset.attrs.get('source', 'Unknown'),
         'observation_source': obs_dataset.attrs.get('source', 'Unknown')
     }
-    
+
     # Save analysis
     mm.save_netcdf_dataset(analysis_dataset, output_file)
-    
+
     return analysis_dataset
 
 # Example usage
@@ -651,14 +651,14 @@ def process_ensemble_models(model_files, common_grid):
     Process multiple model outputs to common grid for ensemble analysis
     """
     ensemble_datasets = []
-    
+
     for model_file in model_files:
         # Load individual model
         model_dataset = mm.load_netcdf_dataset(model_file, chunks={'time': 1})
-        
+
         # Convert to common grid
         model_regridded = {}
-        
+
         for var_name in ['temperature', 'u_wind', 'v_wind', 'humidity']:
             if var_name in model_dataset:
                 # Interpolate to common grid
@@ -666,21 +666,21 @@ def process_ensemble_models(model_files, common_grid):
                     # Wind components
                     u_data = model_dataset['u_wind']
                     v_data = model_dataset['v_wind']
-                    
+
                     u_interp = mm.xr_interpolate_with_dask(
                         u_data,
                         {'lon': model_dataset.lon, 'lat': model_dataset.lat},
                         {'lon': common_grid['lon'], 'lat': common_grid['lat']},
                         method='cubic'
                     )
-                    
+
                     v_interp = mm.xr_interpolate_with_dask(
                         v_data,
                         {'lon': model_dataset.lon, 'lat': model_dataset.lat},
                         {'lon': common_grid['lon'], 'lat': common_grid['lat']},
                         method='cubic'
                     )
-                    
+
                     model_regridded['u_wind'] = u_interp
                     model_regridded['v_wind'] = v_interp
                 else:
@@ -692,26 +692,26 @@ def process_ensemble_models(model_files, common_grid):
                         method='cubic'
                     )
                     model_regridded[var_name] = interp_data
-        
+
         # Create regridded dataset
         regridded_dataset = xr.Dataset(model_regridded, coords=common_grid)
         regridded_dataset.attrs['source'] = model_dataset.attrs.get('source', 'Unknown')
-        
+
         ensemble_datasets.append(regridded_dataset)
-    
+
     return ensemble_datasets
 
 def calculate_ensemble_statistics(ensemble_datasets):
     """Calculate ensemble mean and spread"""
     # Stack all datasets
     stacked = xr.concat(ensemble_datasets, dim='model')
-    
+
     # Calculate statistics
     ensemble_mean = stacked.mean(dim='model')
     ensemble_std = stacked.std(dim='model')
     ensemble_min = stacked.min(dim='model')
     ensemble_max = stacked.max(dim='model')
-    
+
     return {
         'mean': ensemble_mean,
         'std': ensemble_std,
@@ -733,34 +733,34 @@ def climate_data_processing_pipeline(input_dir, output_dir, variables_to_process
     """
     import glob
     import os
-    
+
     # Get all files in input directory
     file_pattern = os.path.join(input_dir, '*.nc')
     input_files = glob.glob(file_pattern)
-    
+
     # Define common grid
     common_grid = {
         'lon': np.linspace(-180, 180, 360),
         'lat': np.linspace(-90, 90, 180),
         'pressure': np.array([1000, 850, 700, 500, 300, 200]) * 100
     }
-    
+
     # Process each file
     processed_datasets = []
-    
+
     for input_file in input_files:
         # Extract year from filename
         filename = os.path.basename(input_file)
         year = filename.split('_')[1]  # Assuming format like 'data_2020.nc'
-        
+
         print(f"Processing {year}...")
-        
+
         # Load and process data
         dataset = mm.load_netcdf_dataset(input_file)
-        
+
         # Process variables
         processed_data = {}
-        
+
         for var_name in variables_to_process:
             if var_name in dataset:
                 # Interpolate to common grid
@@ -768,21 +768,21 @@ def climate_data_processing_pipeline(input_dir, output_dir, variables_to_process
                     # Wind components
                     u_data = dataset['u_wind']
                     v_data = dataset['v_wind']
-                    
+
                     u_interp = mm.xr_interpolate_with_dask(
                         u_data,
                         {'lon': dataset.lon, 'lat': dataset.lat},
                         {'lon': common_grid['lon'], 'lat': common_grid['lat']},
                         method='linear'
                     )
-                    
+
                     v_interp = mm.xr_interpolate_with_dask(
                         v_data,
                         {'lon': dataset.lon, 'lat': dataset.lat},
                         {'lon': common_grid['lon'], 'lat': common_grid['lat']},
                         method='linear'
                     )
-                    
+
                     processed_data['u_wind'] = u_interp
                     processed_data['v_wind'] = v_interp
                 else:
@@ -794,25 +794,25 @@ def climate_data_processing_pipeline(input_dir, output_dir, variables_to_process
                         method='linear'
                     )
                     processed_data[var_name] = interp_data
-        
+
         # Create processed dataset
         processed_dataset = xr.Dataset(processed_data, coords=common_grid)
         processed_dataset.attrs['year'] = year
-        
+
         processed_datasets.append(processed_dataset)
-    
+
     # Concatenate all years
     climate_dataset = xr.concat(processed_datasets, dim='time')
-    
+
     # Save final dataset
     output_path = os.path.join(output_dir, 'processed_climate_data.nc')
     mm.save_netcdf_dataset(climate_dataset, output_path)
-    
+
     return climate_dataset
 
 # Example usage
 # climate_data = climate_data_processing_pipeline(
-#     'input_data/', 'output_data/', 
+#     'input_data/', 'output_data/',
 #     ['temperature', 'u_wind', 'v_wind', 'humidity']
 # )
 ```
@@ -887,13 +887,13 @@ def monitor_processing_memory():
     """Monitor memory usage during data processing"""
     import psutil
     import os
-    
+
     process = psutil.Process(os.getpid())
     memory_info = process.memory_info()
-    
+
     print(f"Memory usage: {memory_info.rss / 1024**2:.1f} MB")
     print(f"Memory percent: {process.memory_percent():.1f}%")
-    
+
     if process.memory_percent() > 80:
         print("Warning: High memory usage detected")
 ```

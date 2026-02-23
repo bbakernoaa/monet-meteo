@@ -328,14 +328,14 @@ def analyze_hurricane_structure(wind_field, pressure_field, lat, dx, dy):
     # Calculate vorticity and divergence
     vorticity = mm.relative_vorticity(wind_field['u'], wind_field['v'], dx, dy)
     divergence = mm.divergence(wind_field['u'], wind_field['v'], dx, dy)
-    
+
     # Calculate pressure gradient wind
     u_pg, v_pg = mm.geostrophic_wind(pressure_field, lat, dx, dy)
-    
+
     # Calculate eye characteristics
     max_vorticity_idx = np.unravel_index(np.argmax(vorticity), vorticity.shape)
     eye_center = (max_vorticity_idx[0] * dx, max_vorticity_idx[1] * dy)
-    
+
     return {
         'vorticity': vorticity,
         'divergence': divergence,
@@ -356,14 +356,14 @@ def identify_fronts(pressure_field, wind_field, lat, dx, dy):
     """
     # Calculate geostrophic wind
     u_geo, v_geo = mm.geostrophic_wind(pressure_field, lat, dx, dy)
-    
+
     # Calculate vorticity along frontal boundaries
     vorticity = mm.relative_vorticity(wind_field['u'], wind_field['v'], dx, dy)
-    
+
     # Identify regions of strong vorticity gradient (frontal zones)
     vorticity_gradient = np.gradient(vorticity)
     frontal_strength = np.sqrt(vorticity_gradient[0]**2 + vorticity_gradient[1]**2)
-    
+
     return {
         'geostrophic_wind': (u_geo, v_geo),
         'vorticity': vorticity,
@@ -383,16 +383,16 @@ def analyze_atmospheric_winds(u_wind, v_wind, pressure_levels, lat, dx, dy):
     """
     # Calculate vertical velocity from divergence
     omega = mm.vertical_velocity_pressure(u_wind, v_wind, pressure_levels, dx, dy)
-    
+
     # Convert to height coordinates
     w = mm.omega_to_w(omega, pressure_levels, 250.0)  # Assume 250K
-    
+
     # Calculate vorticity at different levels
     vorticity_3d = []
     for i in range(len(pressure_levels)):
         vort = mm.relative_vorticity(u_wind[i], v_wind[i], dx, dy)
         vorticity_3d.append(vort)
-    
+
     return {
         'vertical_velocity': w,
         'vorticity_3d': np.array(vorticity_3d),
@@ -454,13 +454,13 @@ def process_large_wind_dataset(data_chunk, dx, dy):
     """Process a chunk of wind data"""
     result = {}
     result['vorticity'] = mm.relative_vorticity(
-        data_chunk['u_wind'], 
-        data_chunk['v_wind'], 
+        data_chunk['u_wind'],
+        data_chunk['v_wind'],
         dx, dy
     )
     result['divergence'] = mm.divergence(
-        data_chunk['u_wind'], 
-        data_chunk['v_wind'], 
+        data_chunk['u_wind'],
+        data_chunk['v_wind'],
         dx, dy
     )
     return result

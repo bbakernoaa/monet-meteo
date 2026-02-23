@@ -29,7 +29,7 @@ from datetime import datetime, timedelta
 def quality_control_weather_data(df, station_metadata):
     """
     Perform quality control on weather station data
-    
+
     Parameters
     ----------
     df : pandas.DataFrame
@@ -37,7 +37,7 @@ def quality_control_weather_data(df, station_metadata):
         ['timestamp', 'temperature', 'humidity', 'pressure', 'wind_speed', 'wind_dir']
     station_metadata : dict
         Station metadata including location, elevation, etc.
-        
+
     Returns
     -------
     pandas.DataFrame
@@ -51,40 +51,40 @@ def quality_control_weather_data(df, station_metadata):
         'wind_speed': (0, 150),    # m/s
         'wind_dir': (0, 360)      # degrees
     }
-    
+
     # Remove values outside physical limits
     for variable, (min_val, max_val) in physical_limits.items():
         if variable in df.columns:
             df = df[(df[variable] >= min_val) & (df[variable] <= max_val)]
-    
+
     # Remove duplicate timestamps
     df = df.drop_duplicates(subset=['timestamp'])
-    
+
     # Sort by timestamp
     df = df.sort_values('timestamp')
-    
+
     # Handle missing data
     df = df.interpolate(method='linear', limit=3)  # Linear interpolation for gaps ≤ 3 readings
-    
+
     # Calculate derived variables for validation
     df['potential_temperature'] = mm.potential_temperature(
-        df['pressure'], 
+        df['pressure'],
         mm.convert_temperature(df['temperature'], 'C', 'K')
     )
-    
+
     df['dewpoint'] = mm.dewpoint_from_relative_humidity(
         mm.convert_temperature(df['temperature'], 'C', 'K'),
         df['humidity'] / 100
     )
-    
+
     # Flag potential errors using thermodynamic consistency
     # Check if dewpoint > temperature (physically impossible)
     df['thermo_consistency'] = df['dewpoint'] <= df['temperature']
-    
+
     # Check for rapid temperature changes (> 10°C in 1 hour)
     df['temp_change'] = df['temperature'].diff().abs()
     df['rapid_change'] = df['temp_change'] > 10
-    
+
     return df
 
 # Example usage
@@ -100,12 +100,12 @@ def quality_control_weather_data(df, station_metadata):
 def process_asos_data(file_path):
     """
     Process ASOS METAR data using Monet-Meteo
-    
+
     Parameters
     ----------
     file_path : str
         Path to ASOS data file
-        
+
     Returns
     -------
     pandas.DataFrame
@@ -113,7 +113,7 @@ def process_asos_data(file_path):
     """
     # Load raw ASOS data
     df = pd.read_csv(file_path)
-    
+
     # Parse METAR codes (simplified example)
     def parse_temperature(temp_str):
         """Parse temperature from METAR code"""
@@ -123,7 +123,7 @@ def process_asos_data(file_path):
             else:
                 return float(temp_str) / 10
         return temp_str
-    
+
     def parse_wind(wind_str):
         """Parse wind speed and direction"""
         if isinstance(wind_str, str):
@@ -131,21 +131,21 @@ def process_asos_data(file_path):
             speed = float(parts[0]) / 10 if parts[0] else 0
             return speed
         return wind_str
-    
+
     # Apply parsing
     df['temperature_c'] = df['temperature'].apply(parse_temperature)
     df['wind_speed_ms'] = df['wind'].apply(parse_wind)
-    
+
     # Convert units
     df['pressure_hpa'] = df['pressure']
     df['relative_humidity'] = df['humidity']
-    
+
     # Calculate missing values using Monet-Meteo
     df['potential_temperature'] = mm.potential_temperature(
         df['pressure_hpa'],
         mm.convert_temperature(df['temperature_c'], 'C', 'K')
     )
-    
+
     df['dewpoint_c'] = mm.convert_temperature(
         mm.dewpoint_from_relative_humidity(
             mm.convert_temperature(df['temperature_c'], 'C', 'K'),
@@ -153,18 +153,18 @@ def process_asos_data(file_path):
         ),
         'K', 'C'
     )
-    
+
     # Calculate heat index and wind chill
     df['heat_index'] = mm.heat_index(
         mm.convert_temperature(df['temperature_c'], 'C', 'K'),
         df['relative_humidity'] / 100
     )
-    
+
     df['wind_chill'] = mm.wind_chill(
         mm.convert_temperature(df['temperature_c'], 'C', 'K'),
         df['wind_speed_ms']
     )
-    
+
     return df
 
 # Example usage
@@ -179,13 +179,13 @@ def process_asos_data(file_path):
 def analyze_radiosonde_sounding(sounding_data):
     """
     Analyze radiosonde sounding data
-    
+
     Parameters
     ----------
     sounding_data : pandas.DataFrame
         Sounding data with columns:
         ['pressure', 'height', 'temperature', 'dewpoint', 'wind_speed', 'wind_dir']
-        
+
     Returns
     -------
     dict
@@ -193,11 +193,11 @@ def analyze_radiosonde_sounding(sounding_data):
     """
     # Sort by pressure (descending)
     sounding_data = sounding_data.sort_values('pressure', ascending=False)
-    
+
     # Calculate atmospheric layers
     sounding_data['layer_thickness'] = sounding_data['height'].diff()
     sounding_data['temp_gradient'] = sounding_data['temperature'].diff() / sounding_data['layer_thickness']
-    
+
     # Identify inversions
     inversions = []
     for i in range(1, len(sounding_data)):
@@ -211,7 +211,7 @@ def analyze_radiosonde_sounding(sounding_data):
                 'height_end': inversion_end['height'],
                 'strength': inversion_end['temperature'] - inversion_start['temperature']
             })
-    
+
     # Calculate CAPE and CIN (simplified)
     sounding_data['virtual_temp'] = mm.virtual_temperature(
         sounding_data['temperature'],
@@ -220,33 +220,33 @@ def analyze_radiosonde_sounding(sounding_data):
             sounding_data['pressure'] * 100
         )
     )
-    
+
     # Calculate mixing ratio
     sounding_data['mixing_ratio'] = mm.mixing_ratio(
-        mm.saturation_vapor_pressure(sounding_data['temperature']) * 
-        np.exp((17.67 * (sounding_data['dewpoint'] - 273.15)) / 
+        mm.saturation_vapor_pressure(sounding_data['temperature']) *
+        np.exp((17.67 * (sounding_data['dewpoint'] - 273.15)) /
                (sounding_data['dewpoint'] - 29.65)),
         sounding_data['pressure'] * 100
     )
-    
+
     # Calculate lifting condensation level
     surface_data = sounding_data.iloc[0]
     lcl_height = mm.lifting_condensation_level(
         surface_data['temperature'],
         mm.convert_temperature(surface_data['dewpoint'], 'C', 'K')
     )
-    
+
     # Find LCL pressure
     lcl_pressure_row = sounding_data[
-        (sounding_data['height'] >= lcl_height) & 
+        (sounding_data['height'] >= lcl_height) &
         (sounding_data['height'] <= lcl_height + 100)
     ].iloc[0] if len(sounding_data[
-        (sounding_data['height'] >= lcl_height) & 
+        (sounding_data['height'] >= lcl_height) &
         (sounding_data['height'] <= lcl_height + 100)
     ]) > 0 else surface_data
-    
+
     lcl_pressure = lcl_pressure_row['pressure']
-    
+
     return {
         'inversions': inversions,
         'lcl_height': lcl_height,
@@ -268,12 +268,12 @@ def analyze_radiosonde_sounding(sounding_data):
 def process_satellite_atmospheric_data(satellite_data):
     """
     Process satellite atmospheric data using Monet-Meteo
-    
+
     Parameters
     ----------
     satellite_data : xarray.Dataset
         Satellite data with atmospheric variables
-        
+
     Returns
     -------
     xarray.Dataset
@@ -284,35 +284,35 @@ def process_satellite_atmospheric_data(satellite_data):
     satellite_data['surface_temperature'] = mm.convert_temperature(
         satellite_data['brightness_temp'], 'K', 'C'
     )
-    
+
     # Calculate atmospheric moisture profiles
     satellite_data['vapor_pressure'] = mm.saturation_vapor_pressure(
         satellite_data['air_temperature']
     )
-    
+
     satellite_data['relative_humidity'] = mm.relative_humidity(
         satellite_data['vapor_pressure'],
         mm.saturation_vapor_pressure(satellite_data['air_temperature'])
     )
-    
+
     # Calculate atmospheric stability from satellite observations
     satellite_data['stability_parameter'] = mm.stability_parameter(
         satellite_data['height'],
         satellite_data['obukhov_length']
     )
-    
+
     # Calculate surface energy balance components
     satellite_data['longwave_radiation'] = mm.stephan_boltzmann(
         satellite_data['surface_temperature'] + 273.15
     )
-    
+
     # Calculate sensible heat flux
     satellite_data['sensible_heat_flux'] = mm.sensible_heat_flux(
         satellite_data['air_temperature'],
         satellite_data['surface_temperature'] + 273.15,
         satellite_data['aerodynamic_resistance']
     )
-    
+
     return satellite_data
 
 # Example usage
@@ -328,12 +328,12 @@ def process_satellite_atmospheric_data(satellite_data):
 def analyze_severe_weather_conditions(observation_data):
     """
     Analyze conditions for severe weather development
-    
+
     Parameters
     ----------
     observation_data : pandas.DataFrame
         Surface and upper air observations
-        
+
     Returns
     -------
     dict
@@ -343,36 +343,36 @@ def analyze_severe_weather_conditions(observation_data):
     def calculate_sherwood_index(temp_850, temp_500, temp_700):
         """Calculate Sherwood Index for severe weather potential"""
         return (temp_850 - temp_500) / (temp_700 - temp_500)
-    
+
     def calculate_showalter_index(temp_850, temp_700, temp_500, dewpoint_850):
         """Calculate Showalter Index"""
         # Simplified calculation
         temp_700_850 = temp_850 - (temp_850 - temp_700) * 2/3
         dewpoint_700 = dewpoint_850 - 20  # Simplified
         return (temp_700_850 - temp_500) - (dewpoint_700 - temp_500)
-    
+
     # Calculate CAPE (simplified)
     surface_temp = observation_data[observation_data['pressure'] == 1000]['temperature'].iloc[0]
     surface_dewpoint = observation_data[observation_data['pressure'] == 1000]['dewpoint'].iloc[0]
-    
+
     lcl_pressure = mm.calculate_lcl_pressure(surface_temp, surface_dewpoint)
     cape = mm.calculate_cape(observation_data, lcl_pressure)
-    
+
     # Calculate bulk shear
     u_wind_500 = observation_data[observation_data['pressure'] == 500]['u_wind'].iloc[0]
     v_wind_500 = observation_data[observation_data['pressure'] == 500]['v_wind'].iloc[0]
     u_wind_850 = observation_data[observation_data['pressure'] == 850]['u_wind'].iloc[0]
     v_wind_850 = observation_data[observation_data['pressure'] == 850]['v_wind'].iloc[0]
-    
+
     bulk_shear = np.sqrt((u_wind_500 - u_wind_850)**2 + (v_wind_500 - v_wind_850)**2)
-    
+
     # Calculate storm-relative helicity
     srh = mm.calculate_storm_relative_helicity(
         observation_data['u_wind'],
         observation_data['v_wind'],
         observation_data['height']
     )
-    
+
     return {
         'cape': cape,
         'bulk_shear': bulk_shear,
@@ -397,14 +397,14 @@ def analyze_severe_weather_conditions(observation_data):
 def assess_severe_weather_risk(cape, bulk_shear, srh):
     """Assess severe weather risk based on indices"""
     risk_level = 'None'
-    
+
     if cape > 2500 and bulk_shear > 20:
         risk_level = 'High'
     elif cape > 1000 and bulk_shear > 15:
         risk_level = 'Moderate'
     elif cape > 500 and bulk_shear > 10:
         risk_level = 'Low'
-    
+
     return risk_level
 
 # Example usage
@@ -420,14 +420,14 @@ def assess_severe_weather_risk(cape, bulk_shear, srh):
 def analyze_marine_conditions(ocean_data, atmospheric_data):
     """
     Analyze marine meteorological conditions
-    
+
     Parameters
     ----------
     ocean_data : pandas.DataFrame
         Oceanographic data
     atmospheric_data : pandas.DataFrame
         Atmospheric data over ocean
-        
+
     Returns
     -------
     dict
@@ -435,22 +435,22 @@ def analyze_marine_conditions(ocean_data, atmospheric_data):
     """
     # Calculate air-sea temperature difference
     air_sea_diff = atmospheric_data['temperature'] - ocean_data['sea_surface_temp']
-    
+
     # Calculate sensible heat flux over ocean
     sensible_heat_flux = mm.sensible_heat_flux(
         mm.convert_temperature(atmospheric_data['temperature'], 'C', 'K'),
         mm.convert_temperature(ocean_data['sea_surface_temp'], 'C', 'K'),
         atmospheric_data['aerodynamic_resistance']
     )
-    
+
     # Calculate latent heat flux over ocean
     latent_heat_flux = mm.latent_heat_flux(
-        mm.saturation_vapor_pressure(mm.convert_temperature(atmospheric_data['temperature'], 'C', 'K')) * 
+        mm.saturation_vapor_pressure(mm.convert_temperature(atmospheric_data['temperature'], 'C', 'K')) *
         atmospheric_data['relative_humidity'] / 100,
         mm.saturation_vapor_pressure(mm.convert_temperature(ocean_data['sea_surface_temp'], 'C', 'K')),
         atmospheric_data['aerodynamic_resistance']
     )
-    
+
     # Calculate marine atmospheric stability
     marine_stability = mm.bulk_richardson_number(
         atmospheric_data['u_wind'],
@@ -458,13 +458,13 @@ def analyze_marine_conditions(ocean_data, atmospheric_data):
         atmospheric_data['potential_temperature'],
         atmospheric_data['height']
     )
-    
+
     # Calculate wave growth potential
     wave_growth_potential = calculate_wave_growth_potential(
         atmospheric_data['wind_speed'],
         atmospheric_data['fetch_length']
     )
-    
+
     return {
         'air_sea_temperature_difference': air_sea_diff,
         'sensible_heat_flux': sensible_heat_flux,
@@ -523,14 +523,14 @@ def classify_sea_state(wind_speed):
 def analyze_alpine_meteorology(met_data, topography):
     """
     Analyze alpine meteorological conditions
-    
+
     Parameters
     ----------
     met_data : pandas.DataFrame
         Meteorological observations
     topography : dict
         Topographic information including elevation, slope, aspect
-        
+
     Returns
     -------
     dict
@@ -539,17 +539,17 @@ def analyze_alpine_meteorology(met_data, topography):
     # Calculate atmospheric pressure at different elevations
     surface_pressure = met_data['pressure'].iloc[0]
     pressure_at_elevation = mm.pressure_to_altitude(
-        met_data['elevation'].values, 
+        met_data['elevation'].values,
         surface_pressure
     )
-    
+
     # Calculate temperature lapse rates
     temperature_lapse_rate = mm.dry_lapse_rate()
     moist_lapse_rate = mm.moist_lapse_rate(
         met_data['temperature'],
         met_data['pressure'] * 100
     )
-    
+
     # Calculate wind loading on slopes
     wind_loading = calculate_wind_loading(
         met_data['wind_speed'],
@@ -557,7 +557,7 @@ def analyze_alpine_meteorology(met_data, topography):
         topography['slope'],
         topography['aspect']
     )
-    
+
     # Calculate avalanche conditions
     snow_stability = assess_avalanche_conditions(
         met_data['temperature'],
@@ -565,7 +565,7 @@ def analyze_alpine_meteorology(met_data, topography):
         met_data['snow_depth'],
         topography['slope']
     )
-    
+
     # Calculate atmospheric stability in valleys
     valley_stability = mm.bulk_richardson_number(
         met_data['u_wind'],
@@ -573,7 +573,7 @@ def analyze_alpine_meteorology(met_data, topography):
         met_data['potential_temperature'],
         met_data['height']
     )
-    
+
     return {
         'pressure_at_elevation': pressure_at_elevation,
         'temperature_lapse_rates': {
@@ -595,7 +595,7 @@ def calculate_wind_loading(wind_speed, wind_dir, slope, aspect):
 def assess_avalanche_conditions(temperature, wind_speed, snow_depth, slope):
     """Assess avalanche conditions based on meteorological factors"""
     risk_level = 'Low'
-    
+
     # Temperature factors
     if temperature > 0 and snow_depth > 30:
         risk_level = 'High'
@@ -603,7 +603,7 @@ def assess_avalanche_conditions(temperature, wind_speed, snow_depth, slope):
         risk_level = 'Moderate'
     elif slope > 35:
         risk_level = 'Moderate' if risk_level == 'Low' else risk_level
-    
+
     return risk_level
 
 def detect_mountain_breeze(met_data):
@@ -611,7 +611,7 @@ def detect_mountain_breeze(met_data):
     # Analyze diurnal wind patterns
     met_data['hour'] = pd.to_datetime(met_data['timestamp']).dt.hour
     diurnal_pattern = met_data.groupby('hour')['wind_speed'].mean()
-    
+
     # Simple mountain breeze detection
     if diurnal_pattern.max() - diurnal_pattern.min() > 5:
         return 'Mountain breeze detected'
@@ -632,14 +632,14 @@ def detect_mountain_breeze(met_data):
 def analyze_air_dispersion(meteorological_data, emission_data):
     """
     Analyze atmospheric dispersion of pollutants
-    
+
     Parameters
     ----------
     meteorological_data : pandas.DataFrame
         Meteorological observations
     emission_data : pandas.DataFrame
         Emission source data
-        
+
     Returns
     -------
     dict
@@ -651,7 +651,7 @@ def analyze_air_dispersion(meteorological_data, emission_data):
         meteorological_data['solar_radiation'],
         meteorological_data['cloud_cover']
     )
-    
+
     # Calculate mixing height
     mixing_height = mm.atmospheric_boundary_layer_height(
         meteorological_data['surface_temperature'],
@@ -659,7 +659,7 @@ def analyze_air_dispersion(meteorological_data, emission_data):
         meteorological_data['wind_speed'],
         meteorological_data['height']
     )
-    
+
     # Calculate dispersion parameters
     dispersion_params = calculate_dispersion_parameters(
         meteorological_data['wind_speed'],
@@ -667,7 +667,7 @@ def analyze_air_dispersion(meteorological_data, emission_data):
         emission_data['stack_height'],
         emission_data['exit_velocity']
     )
-    
+
     # Calculate plume rise
     plume_rise = calculate_plume_rise(
         emission_data['heat_flux'],
@@ -675,7 +675,7 @@ def analyze_air_dispersion(meteorological_data, emission_data):
         meteorological_data['wind_speed'],
         stability_class
     )
-    
+
     # Calculate ground-level concentrations (simplified)
     ground_concentration = calculate_ground_concentration(
         emission_data['emission_rate'],
@@ -684,7 +684,7 @@ def analyze_air_dispersion(meteorological_data, emission_data):
         plume_rise,
         mixing_height
     )
-    
+
     return {
         'stability_class': stability_class,
         'mixing_height': mixing_height,
@@ -718,7 +718,7 @@ def calculate_dispersion_parameters(wind_speed, stability_class, stack_height, e
     # In reality, these would be based on Pasquill-Gifford equations
     sigma_y = 0.1 * wind_speed * stack_height
     sigma_z = 0.05 * wind_speed * stack_height
-    
+
     return {
         'sigma_y': sigma_y,
         'sigma_z': sigma_z,
@@ -733,7 +733,7 @@ def calculate_plume_rise(heat_flux, stack_height, wind_speed, stability_class):
         plume_rise = (1.6 * (heat_flux / (wind_speed * stack_height))**(1/3)) * stack_height
     else:
         plume_rise = 0
-    
+
     return plume_rise
 
 def calculate_ground_concentration(emission_rate, sigma_y, sigma_z, plume_rise, mixing_height):
@@ -742,12 +742,12 @@ def calculate_ground_concentration(emission_rate, sigma_y, sigma_z, plume_rise, 
     x = 1000  # Distance from source (m)
     y = 0      # Crosswind distance (m)
     z = 0      # Height above ground (m)
-    
+
     concentration = (emission_rate / (2 * np.pi * sigma_y * sigma_z * wind_speed)) * \
                    np.exp(-0.5 * (y / sigma_y)**2) * \
-                   (np.exp(-0.5 * ((z - plume_rise) / sigma_z)**2) + 
+                   (np.exp(-0.5 * ((z - plume_rise) / sigma_z)**2) +
                     np.exp(-0.5 * ((z + plume_rise) / sigma_z)**2))
-    
+
     return concentration
 
 def assess_air_quality_impact(concentration):
@@ -777,14 +777,14 @@ def assess_air_quality_impact(concentration):
 def verify_weather_forecasts(observed_data, forecast_data):
     """
     Verify weather forecast accuracy using meteorological statistics
-    
+
     Parameters
     ----------
     observed_data : pandas.DataFrame
         Observed meteorological data
     forecast_data : pandas.DataFrame
         Forecast meteorological data
-        
+
     Returns
     -------
     dict
@@ -794,37 +794,37 @@ def verify_weather_forecasts(observed_data, forecast_data):
     temp_bias = np.mean(forecast_data['temperature'] - observed_data['temperature'])
     temp_mae = np.mean(np.abs(forecast_data['temperature'] - observed_data['temperature']))
     temp_rmse = np.sqrt(np.mean((forecast_data['temperature'] - observed_data['temperature'])**2))
-    
+
     # Calculate verification metrics for precipitation
     precipitation_threshold = 0.1  # mm
-    hits = np.sum((forecast_data['precipitation'] > precipitation_threshold) & 
+    hits = np.sum((forecast_data['precipitation'] > precipitation_threshold) &
                   (observed_data['precipitation'] > precipitation_threshold))
-    misses = np.sum((forecast_data['precipitation'] <= precipitation_threshold) & 
+    misses = np.sum((forecast_data['precipitation'] <= precipitation_threshold) &
                     (observed_data['precipitation'] > precipitation_threshold))
-    false_alarms = np.sum((forecast_data['precipitation'] > precipitation_threshold) & 
+    false_alarms = np.sum((forecast_data['precipitation'] > precipitation_threshold) &
                           (observed_data['precipitation'] <= precipitation_threshold))
-    
+
     # Calculate categorical statistics
     pod = hits / (hits + misses) if (hits + misses) > 0 else 0  # Probability of detection
     far = false_alarms / (hits + false_alarms) if (hits + false_alarms) > 0 else 0  # False alarm ratio
     ets = (hits - hits * (hits + false_alarms) / (hits + misses + false_alarms)) / \
           (hits + misses + false_alarms - hits * (hits + false_alarms) / (hits + misses + false_alarms)) if \
           (hits + misses + false_alarms) > 0 else 0  # Equitable threat score
-    
+
     # Calculate wind forecast accuracy
-    wind_speed_error = np.sqrt((forecast_data['u_wind'] - observed_data['u_wind'])**2 + 
+    wind_speed_error = np.sqrt((forecast_data['u_wind'] - observed_data['u_wind'])**2 +
                               (forecast_data['v_wind'] - observed_data['v_wind'])**2)
     wind_speed_rmse = np.sqrt(np.mean(wind_speed_error**2))
-    
+
     # Calculate categorical forecast statistics for severe weather
     severe_threshold = 30  # m/s
-    severe_hits = np.sum((forecast_data['wind_speed'] > severe_threshold) & 
+    severe_hits = np.sum((forecast_data['wind_speed'] > severe_threshold) &
                         (observed_data['wind_speed'] > severe_threshold))
-    severe_misses = np.sum((forecast_data['wind_speed'] <= severe_threshold) & 
+    severe_misses = np.sum((forecast_data['wind_speed'] <= severe_threshold) &
                           (observed_data['wind_speed'] > severe_threshold))
-    severe_false_alarms = np.sum((forecast_data['wind_speed'] > severe_threshold) & 
+    severe_false_alarms = np.sum((forecast_data['wind_speed'] > severe_threshold) &
                                (observed_data['wind_speed'] <= severe_threshold))
-    
+
     return {
         'temperature_verification': {
             'bias': temp_bias,

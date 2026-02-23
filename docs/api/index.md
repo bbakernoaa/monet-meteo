@@ -7,7 +7,7 @@ Welcome to the monet-meteo library API documentation. This comprehensive API pro
 The monet-meteo library is organized into several modules, each providing specialized functionality for atmospheric science applications:
 
 - **[Thermodynamics](thermodynamics.md)** - Thermodynamic calculations and atmospheric properties
-- **[Derived Parameters](derived.md)** - Derived meteorological parameters and comfort indices  
+- **[Derived Parameters](derived.md)** - Derived meteorological parameters and comfort indices
 - **[Dynamic Calculations](dynamics.md)** - Dynamic meteorology and atmospheric dynamics
 - **[Statistical Analysis](statistical.md)** - Statistical and micrometeorological functions
 - **[Unit Conversions](units.md)** - Meteorological unit conversion utilities
@@ -273,22 +273,22 @@ def process_climate_data(input_file, output_file, target_pressure_levels):
     Complete climate data processing pipeline
     """
     import xarray as xr
-    
+
     # Step 1: Load and validate data
     dataset = mm.load_netcdf_dataset(input_file)
     mm.validate_coordinate_system(dataset)
-    
+
     # Step 2: Convert units
     if 'pressure' in dataset:
         dataset['pressure'] = mm.xr_convert_pressure(dataset['pressure'], 'hPa', 'Pa')
-    
+
     # Step 3: Vertical interpolation
     processed_vars = {}
     for var_name in dataset.data_vars:
         if 'pressure' in dataset[var_name].dims and var_name != 'pressure':
             if var_name in ['u_wind', 'v_wind']:
                 u_interp, v_interp = mm.xr_interpolate_wind_components(
-                    dataset['u_wind'], dataset['v_wind'], 
+                    dataset['u_wind'], dataset['v_wind'],
                     dataset['pressure'], target_pressure_levels, method='log'
                 )
                 processed_vars['u_wind'] = u_interp
@@ -298,20 +298,20 @@ def process_climate_data(input_file, output_file, target_pressure_levels):
                     dataset[var_name], 'pressure', target_pressure_levels, method='log'
                 )
                 processed_vars[var_name] = interp_data
-    
+
     # Step 4: Create final dataset
     final_dataset = xr.Dataset(processed_vars, coords=target_pressure_levels)
-    
+
     # Step 5: Add metadata
     final_dataset.attrs.update({
         'title': 'Processed Climate Data',
         'processing_history': 'Vertical interpolation using monet-meteo',
         'pressure_levels': target_pressure_levels.values
     })
-    
+
     # Step 6: Save results
     mm.save_netcdf_dataset(final_dataset, output_file)
-    
+
     return final_dataset
 ```
 
@@ -323,28 +323,28 @@ def analyze_ensemble_models(model_files, analysis_pressure_levels):
     """
     import xarray as xr
     import glob
-    
+
     # Process each model
     ensemble_data = []
     for model_file in model_files:
         # Load and process model data
         dataset = mm.load_netcdf_dataset(model_file)
-        
+
         # Convert to pressure levels
         processed_dataset = process_climate_data(
             model_file, 'temp.nc', analysis_pressure_levels
         )
-        
+
         ensemble_data.append(processed_dataset)
-    
+
     # Calculate ensemble statistics
     stacked = xr.concat(ensemble_data, dim='model')
     ensemble_mean = stacked.mean(dim='model')
     ensemble_std = stacked.std(dim='model')
-    
+
     # Calculate derived quantities
     wind_speed = np.sqrt(ensemble_mean['u_wind']**2 + ensemble_mean['v_wind']**2)
-    
+
     return {
         'mean': ensemble_mean,
         'std': ensemble_std,
