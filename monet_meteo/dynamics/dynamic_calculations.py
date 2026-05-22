@@ -375,3 +375,177 @@ def omega_to_w(
         Geometric vertical velocity (m/s)
     """
     return vertical_velocity_pressure(omega, pressure, temperature, mixing_ratio)
+
+
+def bunkers_storm_motion(
+    u: Union[np.ndarray, xr.DataArray],
+    v: Union[np.ndarray, xr.DataArray],
+    heights: Union[np.ndarray, xr.DataArray],
+    latitude: Union[float, np.ndarray, xr.DataArray]
+) -> Tuple[Union[np.ndarray, xr.DataArray], Union[np.ndarray, xr.DataArray]]:
+    """
+    Calculate the Bunkers storm motion vector.
+
+    Based on UPP's CALHEL.f which uses the dynamic method (Bunkers et al. 1998).
+    It computes estimated storm motion 7.5 m/s to the right of the 0-6 km mean
+    wind, constrained along a line perpendicular to the 0-6 km mean vertical
+    wind shear vector.
+
+    Parameters
+    ----------
+    u : numpy.ndarray or xarray.DataArray
+        Eastward wind component (m/s). Assumed to have vertical dimension at axis -3.
+    v : numpy.ndarray or xarray.DataArray
+        Northward wind component (m/s). Assumed to have vertical dimension at axis -3.
+    heights : numpy.ndarray or xarray.DataArray
+        Heights AGL (m). Same shape as u, v.
+    latitude : float, numpy.ndarray, or xarray.DataArray
+        Latitude (degrees).
+
+    Returns
+    -------
+    tuple of numpy.ndarray or xarray.DataArray
+        Estimated storm motion (u_st, v_st) in m/s.
+    """
+    # 0-6 km mean wind
+    mask_0_6 = (heights >= 0) & (heights <= 6000)
+    u_mean6 = np.where(mask_0_6, u, np.nan)
+    v_mean6 = np.where(mask_0_6, v, np.nan)
+    u_mean6 = np.nanmean(u_mean6, axis=-3)
+    v_mean6 = np.nanmean(v_mean6, axis=-3)
+
+    # 0-0.5 km mean wind
+    mask_0_05 = (heights >= 0) & (heights <= 500)
+    u_mean05 = np.where(mask_0_05, u, np.nan)
+    v_mean05 = np.where(mask_0_05, v, np.nan)
+    u_mean05 = np.nanmean(u_mean05, axis=-3)
+    v_mean05 = np.nanmean(v_mean05, axis=-3)
+
+    # 5.5-6.0 km mean wind
+    mask_55_6 = (heights >= 5500) & (heights <= 6000)
+    u_mean55_6 = np.where(mask_55_6, u, np.nan)
+    v_mean55_6 = np.where(mask_55_6, v, np.nan)
+    u_mean55_6 = np.nanmean(u_mean55_6, axis=-3)
+    v_mean55_6 = np.nanmean(v_mean55_6, axis=-3)
+
+    # Shear vector
+    u_shr6 = u_mean55_6 - u_mean05
+    v_shr6 = v_mean55_6 - v_mean05
+
+    denom = np.sqrt(u_shr6**2 + v_shr6**2)
+    denom = np.where(denom == 0, np.nan, denom)
+
+    # Determine hemisphere
+    if isinstance(latitude, (xr.DataArray, np.ndarray)):
+        is_northern = latitude >= 0
+    else:
+        is_northern = latitude >= 0
+
+    # Storm motion (Right Mover)
+    if isinstance(u_mean6, xr.DataArray):
+        u_st = xr.where(is_northern, u_mean6 + (7.5 * v_shr6 / denom), u_mean6 - (7.5 * v_shr6 / denom))
+        v_st = xr.where(is_northern, v_mean6 - (7.5 * u_shr6 / denom), v_mean6 + (7.5 * u_shr6 / denom))
+    else:
+        u_st = np.where(is_northern, u_mean6 + (7.5 * v_shr6 / denom), u_mean6 - (7.5 * v_shr6 / denom))
+        v_st = np.where(is_northern, v_mean6 - (7.5 * u_shr6 / denom), v_mean6 + (7.5 * u_shr6 / denom))
+
+    return u_st, v_st
+
+
+def storm_relative_helicity(
+    u: Union[np.ndarray, xr.DataArray],
+    v: Union[np.ndarray, xr.DataArray],
+    heights: Union[np.ndarray, xr.DataArray],
+    u_st: Union[np.ndarray, xr.DataArray],
+    v_st: Union[np.ndarray, xr.DataArray],
+    depth: float = 3000.0
+) -> Union[np.ndarray, xr.DataArray]:
+    """
+    Calculate storm-relative helicity (SRH).
+
+    Based on UPP's CALHEL.f logic.
+
+    Parameters
+    ----------
+    u : numpy.ndarray or xarray.DataArray
+        Eastward wind component (m/s).
+    v : numpy.ndarray or xarray.DataArray
+        Northward wind component (m/s).
+    heights : numpy.ndarray or xarray.DataArray
+        Heights AGL (m).
+    u_st : float, numpy.ndarray, or xarray.DataArray
+        U component of storm motion (m/s).
+    v_st : float, numpy.ndarray, or xarray.DataArray
+        V component of storm motion (m/s).
+    depth : float, optional
+        Depth over which to compute SRH (m). Default is 3000.0 (0-3 km SRH).
+
+    Returns
+    -------
+    numpy.ndarray or xarray.DataArray
+        Storm-relative helicity (m^2/s^2).
+    """
+    # Filter by depth
+    mask = heights <= depth
+
+    # Get layers
+    # We assume heights are sorted vertically
+    # Using trapezoidal integration: SRH = sum( (v - v_st)*du - (u - u_st)*dv )
+
+    du = np.diff(u, axis=-3)
+    dv = np.diff(v, axis=-3)
+
+    # Mid-point values
+    u_mid = (u[..., 1:, :, :] + u[..., :-1, :, :]) / 2.0
+    v_mid = (v[..., 1:, :, :] + v[..., :-1, :, :]) / 2.0
+
+    mask_mid = (heights[..., 1:, :, :] <= depth)
+
+    term1 = (v_mid - v_st) * du
+    term2 = (u_mid - u_st) * dv
+
+    srh_layers = term1 - term2
+    srh = np.nansum(np.where(mask_mid, srh_layers, 0), axis=-3)
+
+    return srh
+
+
+def moisture_convergence(
+    u: Union[np.ndarray, xr.DataArray],
+    v: Union[np.ndarray, xr.DataArray],
+    specific_humidity: Union[np.ndarray, xr.DataArray],
+    dx: float,
+    dy: float
+) -> Union[np.ndarray, xr.DataArray]:
+    """
+    Calculate horizontal moisture convergence.
+
+    Based on UPP's CALMCVG.f: QCNVG = - ( ∂(u*q)/∂x + ∂(v*q)/∂y )
+
+    Parameters
+    ----------
+    u : numpy.ndarray or xarray.DataArray
+        Eastward wind component (m/s).
+    v : numpy.ndarray or xarray.DataArray
+        Northward wind component (m/s).
+    specific_humidity : numpy.ndarray or xarray.DataArray
+        Specific humidity (kg/kg).
+    dx : float
+        Grid spacing in x direction (m).
+    dy : float
+        Grid spacing in y direction (m).
+
+    Returns
+    -------
+    numpy.ndarray or xarray.DataArray
+        Moisture convergence (kg/kg/s).
+    """
+    uq = u * specific_humidity
+    vq = v * specific_humidity
+
+    duq_dx = np.gradient(uq, axis=-1) / dx
+    dvq_dy = np.gradient(vq, axis=-2) / dy
+
+    mconv = -(duq_dx + dvq_dy)
+
+    return mconv

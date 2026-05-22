@@ -20,7 +20,10 @@ from .dynamic_calculations import (
     potential_vorticity,
     vertical_velocity_pressure,
     omega_to_w,
-    coriolis_parameter
+    coriolis_parameter,
+    bunkers_storm_motion,
+    storm_relative_helicity,
+    moisture_convergence
 )
 
 __all__ = [
@@ -32,5 +35,8 @@ __all__ = [
     'potential_vorticity',
     'vertical_velocity_pressure',
     'omega_to_w',
-    'coriolis_parameter'
+    'coriolis_parameter',
+    'bunkers_storm_motion',
+    'storm_relative_helicity',
+    'moisture_convergence'
 ]

@@ -17,7 +17,9 @@ from .derived_calculations import (
     wet_bulb_temperature,
     dewpoint_temperature,
     saturation_vapor_pressure,
-    actual_vapor_pressure
+    actual_vapor_pressure,
+    wind_gust_diagnostic,
+    visibility_diagnostic
 )
 
 __all__ = [
@@ -27,5 +29,7 @@ __all__ = [
     'wet_bulb_temperature',
     'dewpoint_temperature',
     'saturation_vapor_pressure',
-    'actual_vapor_pressure'
+    'actual_vapor_pressure',
+    'wind_gust_diagnostic',
+    'visibility_diagnostic'
 ]

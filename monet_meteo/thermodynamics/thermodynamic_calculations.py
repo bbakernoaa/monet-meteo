@@ -99,7 +99,7 @@ def saturation_vapor_pressure(
     t_celsius = temperature - 273.15
     
     # Bolton (1980) formula for saturation vapor pressure over water
-    e_s = 61.2 * np.exp(17.67 * t_celsius / (t_celsius + 243.5))
+    e_s = 611.2 * np.exp(17.67 * t_celsius / (t_celsius + 243.5))
     
     return e_s
 
@@ -361,3 +361,105 @@ def lifting_condensation_level(
         lcl_height = max(lcl_height, 0)
     
     return lcl_height
+
+
+def lifted_index(
+    temperature_sfc: Union[float, np.ndarray, xr.DataArray],
+    dewpoint_sfc: Union[float, np.ndarray, xr.DataArray],
+    pressure_sfc: Union[float, np.ndarray, xr.DataArray],
+    temperature_500: Union[float, np.ndarray, xr.DataArray]
+) -> Union[float, np.ndarray, xr.DataArray]:
+    """
+    Calculate the Lifted Index (LI).
+
+    Based on UPP's OTLIFT.f logic. It lifts a parcel from the surface to 500 hPa
+    and compares its virtual temperature with the ambient 500 hPa temperature.
+
+    Parameters
+    ----------
+    temperature_sfc : float, numpy.ndarray, or xarray.DataArray
+        Starting temperature (K).
+    dewpoint_sfc : float, numpy.ndarray, or xarray.DataArray
+        Starting dewpoint temperature (K).
+    pressure_sfc : float, numpy.ndarray, or xarray.DataArray
+        Starting pressure (Pa).
+    temperature_500 : float, numpy.ndarray, or xarray.DataArray
+        Ambient temperature at 500 hPa (K).
+
+    Returns
+    -------
+    float, numpy.ndarray, or xarray.DataArray
+        Lifted Index (K).
+    """
+    # 1. Mixing ratio at surface
+    e_sfc = saturation_vapor_pressure(dewpoint_sfc)
+    r_sfc = mixing_ratio(e_sfc, pressure_sfc)
+
+    # 2. LCL temperature (Bolton 1980 Eq 22)
+    t_lcl = 1.0 / (1.0 / (dewpoint_sfc - 56.0) + np.log(temperature_sfc / dewpoint_sfc) / 800.0) + 56.0
+
+    # 3. Equivalent potential temperature (conserved during ascent)
+    # Using Bolton (1980) Eq. 43
+    theta_e = (temperature_sfc * (100000.0 / pressure_sfc)**(0.2854 * (1.0 - 0.28 * r_sfc)) *
+               np.exp((3376.0 / t_lcl - 2.54) * r_sfc * (1.0 + 0.81 * r_sfc)))
+
+    # 4. Find temperature of parcel at 500 hPa (saturated ascent)
+    p_500 = 50000.0
+
+    # Iteratively solve for T at 500 hPa where theta_e_sat(500, T) = theta_e
+    t_parcel = np.full_like(theta_e, 260.0) if hasattr(theta_e, 'shape') else 260.0
+    for _ in range(10):
+        es = saturation_vapor_pressure(t_parcel)
+        rs = mixing_ratio(es, p_500)
+        theta_e_curr = (t_parcel * (100000.0 / p_500)**(0.2854 * (1.0 - 0.28 * rs)) *
+                       np.exp((3376.0 / t_parcel - 2.54) * rs * (1.0 + 0.81 * rs)))
+        t_parcel += (theta_e - theta_e_curr) * 0.1
+
+    # Virtual temperature of parcel at 500 hPa
+    tv_parcel = virtual_temperature(t_parcel, rs)
+
+    # LI = T500_ambient - Tv_parcel_500
+    li = temperature_500 - tv_parcel
+
+    return li
+
+
+def precipitable_water(
+    specific_humidity: Union[np.ndarray, xr.DataArray],
+    pressure: Union[np.ndarray, xr.DataArray],
+    cloud_water: Optional[Union[np.ndarray, xr.DataArray]] = None
+) -> Union[float, np.ndarray, xr.DataArray]:
+    """
+    Calculate total column precipitable water (PW).
+
+    Based on UPP's CALPW.f logic: PW = sum( (q + cldw) * dp / g ).
+
+    Parameters
+    ----------
+    specific_humidity : numpy.ndarray or xarray.DataArray
+        Specific humidity profile (kg/kg). Vertical dimension at axis -3.
+    pressure : numpy.ndarray or xarray.DataArray
+        Pressure levels (Pa). If vertical dimension size is LM+1, assumed to be
+        interface pressures. If LM, assumed to be mid-layer pressures.
+    cloud_water : numpy.ndarray or xarray.DataArray, optional
+        Cloud water mixing ratio profile (kg/kg).
+
+    Returns
+    -------
+    float, numpy.ndarray, or xarray.DataArray
+        Total column precipitable water (kg/m^2 or mm).
+    """
+    if cloud_water is None:
+        cloud_water = 0.0
+
+    # Calculate dp (layer thickness)
+    if pressure.shape[-3] == specific_humidity.shape[-3] + 1:
+        dp = np.abs(np.diff(pressure, axis=-3))
+    else:
+        # If mid-layer pressures provided, approximate dp
+        # This is a fallback
+        dp = np.abs(np.gradient(pressure, axis=-3))
+
+    pw = np.nansum((specific_humidity + cloud_water) * dp / g, axis=-3)
+
+    return pw

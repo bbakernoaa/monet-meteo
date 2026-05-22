@@ -22,7 +22,9 @@ from .thermodynamic_calculations import (
     wet_bulb_temperature,
     moist_lapse_rate,
     dry_lapse_rate,
-    lifting_condensation_level
+    lifting_condensation_level,
+    lifted_index,
+    precipitable_water
 )
 
 __all__ = [
@@ -36,5 +38,7 @@ __all__ = [
     'wet_bulb_temperature',
     'moist_lapse_rate',
     'dry_lapse_rate',
-    'lifting_condensation_level'
+    'lifting_condensation_level',
+    'lifted_index',
+    'precipitable_water'
 ]

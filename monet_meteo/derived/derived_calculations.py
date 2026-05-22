@@ -63,22 +63,26 @@ def heat_index(
             2.04901523 * temp_f +
             10.14333127 * rh -
             0.22475541 * temp_f * rh -
-            0.0683783 * temp_f**2 -
+            0.00683783 * temp_f**2 -
             0.05481717 * rh**2 +
-            0.0122874 * temp_f**2 * rh +
+            0.00122874 * temp_f**2 * rh +
             0.00085282 * temp_f * rh**2 -
-            0.0000199 * temp_f**2 * rh**2
+            0.00000199 * temp_f**2 * rh**2
         )
         
         # Adjust for RH < 13% and temp_f between 80-112
-        adjust1 = ((13 - rh) / 4) ** 0.5
-        adjust2 = (17 - np.abs(temp_f - 95)) / 17
-        hi_complex = hi_complex - adjust1 * adjust2
+        mask1 = (rh < 13) & (temp_f >= 80) & (temp_f <= 112)
+        if np.any(mask1):
+            adjust1 = ((13 - rh) / 4) ** 0.5
+            adjust2 = (17 - np.abs(temp_f - 95)) / 17
+            hi_complex = np.where(mask1, hi_complex - adjust1 * adjust2, hi_complex)
         
         # Adjust for RH > 85% and temp_f between 80-87
-        adjust3 = (rh - 85) / 10
-        adjust4 = (87 - temp_f) / 5
-        hi_complex = hi_complex + adjust3 * adjust4
+        mask2 = (rh > 85) & (temp_f >= 80) & (temp_f <= 87)
+        if np.any(mask2):
+            adjust3 = (rh - 85) / 10
+            adjust4 = (87 - temp_f) / 5
+            hi_complex = np.where(mask2, hi_complex + adjust3 * adjust4, hi_complex)
         
         # Use the more complex formula where appropriate
         if isinstance(hi, np.ndarray):
@@ -317,3 +321,135 @@ def wet_bulb_temperature(
     tw_k = tw_c + 273.15
     
     return tw_k
+
+
+def wind_gust_diagnostic(
+    u: Union[np.ndarray, xr.DataArray],
+    v: Union[np.ndarray, xr.DataArray],
+    heights: Union[np.ndarray, xr.DataArray],
+    pbl_height: Union[float, np.ndarray, xr.DataArray],
+    u10: Union[float, np.ndarray, xr.DataArray],
+    v10: Union[float, np.ndarray, xr.DataArray]
+) -> Union[float, np.ndarray, xr.DataArray]:
+    """
+    Calculate surface wind gust diagnostic.
+
+    Based on UPP's CALGUST.f logic. It mixes down momentum from the PBL height
+    to the surface, with a scaling factor that depends on the height.
+
+    Parameters
+    ----------
+    u : numpy.ndarray or xarray.DataArray
+        Eastward wind component profile (m/s).
+    v : numpy.ndarray or xarray.DataArray
+        Northward wind component profile (m/s).
+    heights : numpy.ndarray or xarray.DataArray
+        Heights AGL (m).
+    pbl_height : float, numpy.ndarray, or xarray.DataArray
+        Planetary Boundary Layer height (m).
+    u10 : float, numpy.ndarray, or xarray.DataArray
+        10m U wind component (m/s).
+    v10 : float, numpy.ndarray, or xarray.DataArray
+        10m V wind component (m/s).
+
+    Returns
+    -------
+    numpy.ndarray or xarray.DataArray
+        Surface wind gust speed (m/s).
+    """
+    sfc_wind = np.sqrt(u10**2 + v10**2)
+
+    # Wind speed profile
+    wind_profile = np.sqrt(u**2 + v**2)
+
+    # Find wind at PBL height
+    # For simplicity, we'll take the max wind within the PBL as a conservative estimate
+    # similar to the loop in CALGUST.f for RAP/GFS/FV3
+    mask_pbl = (heights >= 0) & (heights <= pbl_height)
+
+    # Scaling factor from CALGUST.f: DELWIND = DELWIND * (1.0 - MIN(0.5, DZ/2000.))
+    # where DZ is height above ground.
+    scaling = 1.0 - np.minimum(0.5, heights / 2000.0)
+
+    del_wind = (wind_profile - sfc_wind) * scaling
+    gust_profile = sfc_wind + del_wind
+
+    # Maximum gust within the PBL
+    gust = np.nanmax(np.where(mask_pbl, gust_profile, -np.inf), axis=-3)
+
+    # Ensure gust is at least the surface wind
+    if isinstance(gust, xr.DataArray):
+        gust = xr.where(gust < sfc_wind, sfc_wind, gust)
+    else:
+        gust = np.where(gust < sfc_wind, sfc_wind, gust)
+
+    return gust
+
+
+def visibility_diagnostic(
+    temperature: Union[float, np.ndarray, xr.DataArray],
+    pressure: Union[float, np.ndarray, xr.DataArray],
+    specific_humidity: Union[float, np.ndarray, xr.DataArray],
+    cloud_water: Union[float, np.ndarray, xr.DataArray],
+    rain_water: Union[float, np.ndarray, xr.DataArray],
+    cloud_ice: Union[float, np.ndarray, xr.DataArray],
+    snow_water: Union[float, np.ndarray, xr.DataArray]
+) -> Union[float, np.ndarray, xr.DataArray]:
+    """
+    Calculate horizontal visibility.
+
+    Based on UPP's CALVIS.f logic using extinction coefficients for different
+    hydrometeors.
+
+    Parameters
+    ----------
+    temperature : float, numpy.ndarray, or xarray.DataArray
+        Air temperature (K).
+    pressure : float, numpy.ndarray, or xarray.DataArray
+        Air pressure (Pa).
+    specific_humidity : float, numpy.ndarray, or xarray.DataArray
+        Specific humidity (kg/kg).
+    cloud_water : float, numpy.ndarray, or xarray.DataArray
+        Cloud water mixing ratio (kg/kg).
+    rain_water : float, numpy.ndarray, or xarray.DataArray
+        Rain water mixing ratio (kg/kg).
+    cloud_ice : float, numpy.ndarray, or xarray.DataArray
+        Cloud ice mixing ratio (kg/kg).
+    snow_water : float, numpy.ndarray, or xarray.DataArray
+        Snow mixing ratio (kg/kg).
+
+    Returns
+    -------
+    numpy.ndarray or xarray.DataArray
+        Visibility (m).
+    """
+    # Virtual temperature and air density
+    tv = temperature * (1.0 + 0.608 * specific_humidity)
+    rho_air = pressure / (R_d * tv)
+
+    # Volume of air per unit mass of dry air approx.
+    # UPP uses: VOVERMD = (1.+QV)/RHOAIR + (QCLW+QRAIN)/RHOWAT + (QCLICE+QSNOW)/RHOICE
+    # But for beta calculation, mass concentration C (g/m^3) is needed.
+    # C = mixing_ratio * rho_air * 1000.0
+
+    c_lc = np.maximum(0, cloud_water * rho_air * 1000.0)
+    c_lp = np.maximum(0, rain_water * rho_air * 1000.0)
+    c_fc = np.maximum(0, cloud_ice * rho_air * 1000.0)
+    c_fp = np.maximum(0, snow_water * rho_air * 1000.0)
+
+    # Extinction coefficients beta (km^-1)
+    beta = (144.7 * c_lc**0.88 +
+            2.24 * c_lp**0.75 +
+            327.8 * c_fc**1.0 +
+            10.36 * c_fp**0.7776 +
+            1e-10)
+
+    # Visibility (km)
+    # vis = -ln(0.02) / beta
+    const1 = -np.log(0.02)
+    vis_km = const1 / beta
+
+    # Limit visibility to 24.135 km as in UPP
+    vis_km = np.minimum(24.135, vis_km)
+
+    return vis_km * 1000.0  # Return in meters
