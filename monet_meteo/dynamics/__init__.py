@@ -13,24 +13,30 @@ This module provides functions for calculating dynamic meteorological parameters
 # Import all dynamic calculation functions
 from .dynamic_calculations import (
     absolute_vorticity,
-    relative_vorticity,
+    bunkers_storm_motion,
+    coriolis_parameter,
     divergence,
     geostrophic_wind,
     gradient_wind,
-    potential_vorticity,
-    vertical_velocity_pressure,
+    moisture_convergence,
     omega_to_w,
-    coriolis_parameter
+    potential_vorticity,
+    relative_vorticity,
+    storm_relative_helicity,
+    vertical_velocity_pressure,
 )
 
 __all__ = [
-    'absolute_vorticity',
-    'relative_vorticity',
-    'divergence',
-    'geostrophic_wind',
-    'gradient_wind',
-    'potential_vorticity',
-    'vertical_velocity_pressure',
-    'omega_to_w',
-    'coriolis_parameter'
+    "absolute_vorticity",
+    "relative_vorticity",
+    "divergence",
+    "geostrophic_wind",
+    "gradient_wind",
+    "potential_vorticity",
+    "vertical_velocity_pressure",
+    "omega_to_w",
+    "coriolis_parameter",
+    "bunkers_storm_motion",
+    "storm_relative_helicity",
+    "moisture_convergence",
 ]

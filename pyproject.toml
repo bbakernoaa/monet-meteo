@@ -13,16 +13,13 @@ maintainers = [
 ]
 description = "A comprehensive meteorological library for atmospheric sciences that provides tools for atmospheric calculations including thermodynamic variables, derived parameters, and dynamic calculations."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Atmospheric Science",
@@ -43,8 +40,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.0.0",
     "pytest-benchmark>=4.0.0",
-    "black>=22.0.0",
-    "flake8>=4.0.0",
+    "ruff>=0.1.0",
     "mypy>=0.950",
     "pre-commit>=2.17.0",
     "setuptools_scm>=6.2",
@@ -75,3 +71,10 @@ include = ["monet_meteo*"]
 
 [tool.setuptools.package-data]
 monet_meteo = ["py.typed"]
+
+[tool.ruff]
+line-length = 150
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]

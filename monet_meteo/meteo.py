@@ -259,12 +259,7 @@ def calc_sun_angles(lat, lon, stdlon, doy, ftime):
 
     # Calculate declination
     declination = 0.409 * np.sin((2.0 * np.pi * doy / 365.0) - 1.39)
-    EOT = (
-        0.258 * np.cos(declination)
-        - 7.416 * np.sin(declination)
-        - 3.648 * np.cos(2.0 * declination)
-        - 9.228 * np.sin(2.0 * declination)
-    )
+    EOT = 0.258 * np.cos(declination) - 7.416 * np.sin(declination) - 3.648 * np.cos(2.0 * declination) - 9.228 * np.sin(2.0 * declination)
     LC = (stdlon - lon) / 15.0
     time_corr = (-EOT / 60.0) + LC
     solar_time = ftime - time_corr
@@ -273,9 +268,7 @@ def calc_sun_angles(lat, lon, stdlon, doy, ftime):
     w = np.asarray((solar_time - 12.0) * 15.0)
 
     # Get solar elevation angle
-    sin_thetha = np.cos(np.radians(w)) * np.cos(declination) * np.cos(np.radians(lat)) + np.sin(
-        declination
-    ) * np.sin(np.radians(lat))
+    sin_thetha = np.cos(np.radians(w)) * np.cos(declination) * np.cos(np.radians(lat)) + np.sin(declination) * np.sin(np.radians(lat))
     sun_elev = np.arcsin(sin_thetha)
 
     # Get solar zenith angle
@@ -284,11 +277,7 @@ def calc_sun_angles(lat, lon, stdlon, doy, ftime):
 
     # Get solar azimuth angle
     cos_phi = np.asarray(
-        (
-            np.sin(declination) * np.cos(np.radians(lat))
-            - np.cos(np.radians(w)) * np.cos(declination) * np.sin(np.radians(lat))
-        )
-        / np.cos(sun_elev)
+        (np.sin(declination) * np.cos(np.radians(lat)) - np.cos(np.radians(w)) * np.cos(declination) * np.sin(np.radians(lat))) / np.cos(sun_elev)
     )
     saa = np.zeros(sza.shape)
     saa[w <= 0.0] = np.degrees(np.arccos(cos_phi[w <= 0.0]))
@@ -384,11 +373,7 @@ def calc_lapse_rate_moist(T_A_K, ea, p):
     r = calc_mixing_ratio(ea, p)
     c_p = calc_c_p(p, ea)
     lambda_v = calc_lambda(T_A_K)
-    Gamma_w = (
-        g
-        * (R_d * T_A_K**2 + lambda_v * r * T_A_K)
-        / (c_p * R_d * T_A_K**2 + lambda_v**2 * r * epsilon)
-    )
+    Gamma_w = g * (R_d * T_A_K**2 + lambda_v * r * T_A_K) / (c_p * R_d * T_A_K**2 + lambda_v**2 * r * epsilon)
     return Gamma_w
 
 
@@ -461,7 +446,7 @@ def calc_L(ustar, T_A_K, rho, c_p, H, LE):
     L = np.asarray(np.ones(ustar.shape) * float("inf"))
     i = Hv != 0
     L_const = np.asarray(k * gravity / T_A_K)
-    L[i] = -ustar[i] ** 3 / (L_const[i] * (Hv[i] / (rho[i] * c_p[i])))
+    L[i] = -(ustar[i] ** 3) / (L_const[i] * (Hv[i] / (rho[i] * c_p[i])))
     return np.asarray(L)
 
 
@@ -584,9 +569,7 @@ def calc_richardson(u, z_u, d_0, T_R0, T_R1, T_A0, T_A1):
     """
 
     # See eq (2) from Louis 1979
-    Ri = -(gravity * (z_u - d_0) / T_A1) * (
-        ((T_R1 - T_R0) - (T_A1 - T_A0)) / u**2
-    )  # equation (12) [Norman2000]
+    Ri = -(gravity * (z_u - d_0) / T_A1) * (((T_R1 - T_R0) - (T_A1 - T_A0)) / u**2)  # equation (12) [Norman2000]
     return np.asarray(Ri)
 
 

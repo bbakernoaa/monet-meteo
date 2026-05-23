@@ -14,19 +14,12 @@ except ImportError:
 
 __author__ = "NOAA Air Resources Laboratory"
 
-from . import thermodynamics
-from . import derived
-from . import dynamics
-from . import statistical
-from . import constants
-from . import models
-from . import units
-from . import io
-
-# Import main functions for easy access
-from .thermodynamics import *
+from . import constants, derived, dynamics, io, models, statistical, thermodynamics, units
 from .derived import *
 from .dynamics import *
 from .models import *
-from .units import *
 from .statistical import *
+
+# Import main functions for easy access
+from .thermodynamics import *
+from .units import *
